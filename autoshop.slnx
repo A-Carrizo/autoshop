@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="autoshop.client/autoshop.client.esproj">
+    <Build />
+    <Deploy />
+  </Project>
+  <Project Path="autoshop.Server/autoshop.Server.csproj" />
+</Solution>

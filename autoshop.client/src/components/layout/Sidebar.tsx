@@ -86,13 +86,7 @@ export default function Sidebar() {
             <hr className="sidebar-divider" />
             <div className="sidebar-heading" style={{ color: 'var(--text-muted)' }}>Finanzas</div>
 
-            {/* Reportes */}
-            <li className="nav-item">
-                <NavLink className="nav-link" to="/reportes">
-                    <i className="fas fa-fw fa-chart-bar" style={{ color: 'var(--secondary)' }}></i>
-                    <span>Reportes</span>
-                </NavLink>
-            </li>
+
 
             <hr className="sidebar-divider d-none d-md-block" />
 

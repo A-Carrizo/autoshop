@@ -34,4 +34,8 @@
     </ProjectReference>
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="wwwroot\imagenes\productos\" />
+  </ItemGroup>
+
 </Project>

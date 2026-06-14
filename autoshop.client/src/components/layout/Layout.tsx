@@ -5,9 +5,10 @@ import Navbar from './Navbar'
 interface LayoutProps {
     children: ReactNode
     titulo: string
+    sinFooter?: boolean
 }
 
-export default function Layout({ children, titulo }: LayoutProps) {
+export default function Layout({ children, titulo, sinFooter = false }: LayoutProps) {
     return (
         <div id="wrapper" style={{ display: 'flex' }}>
 
@@ -34,16 +35,18 @@ export default function Layout({ children, titulo }: LayoutProps) {
                 </div>
 
                 {/* Footer */}
-                <footer style={{
-                    backgroundColor: 'white',
-                    borderTop: '1px solid #e0e0e0',
-                    padding: '16px',
-                    textAlign: 'center',
-                    fontSize: '13px',
-                    color: 'var(--text-muted)'
-                }}>
-                    © 2026 MagCar Auto Shop — Sistema de Gestión
-                </footer>
+                {!sinFooter && (
+                    <footer style={{
+                        backgroundColor: 'white',
+                        borderTop: '1px solid #e0e0e0',
+                        padding: '16px',
+                        textAlign: 'center',
+                        fontSize: '13px',
+                        color: 'var(--text-muted)'
+                    }}>
+                        © 2026 MagCar Auto Shop — Sistema de Gestión
+                    </footer>
+                )}
 
             </div>
         </div>

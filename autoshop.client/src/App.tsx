@@ -3,8 +3,14 @@ import { Toaster } from 'react-hot-toast'
 import Dashboard from './pages/Dashboard'
 import Categorias from './pages/Categorias'
 import Productos from './pages/Productos'
+import NuevaVenta from './pages/NuevaVenta'
+import Clientes from './pages/Clientes'
+import Historial from './pages/Historial'
+
+
+
 import './styles/magcar.css'
-import 'bootstrap/dist/css/bootstrap.min.css'
+import 'bootstrap/dist/css/bootstrap.min.css'   
 import '@fortawesome/fontawesome-free/css/all.min.css'
 import 'bootstrap/dist/js/bootstrap.bundle.min.js'
 
@@ -50,6 +56,9 @@ export default function App() {
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/categorias" element={<Categorias />} />
                 <Route path="/productos" element={<Productos />} />
+                <Route path="/ventas" element={<NuevaVenta />} />
+                <Route path="/clientes" element={<Clientes />} />
+                <Route path="/historial" element={<Historial />} />
             </Routes>
         </BrowserRouter>
     )

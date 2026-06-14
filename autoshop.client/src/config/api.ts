@@ -7,6 +7,8 @@ export const API = {
     devoluciones: `${API_BASE_URL}/api/devoluciones`,
     inventario: `${API_BASE_URL}/api/inventario`,
     reportes: `${API_BASE_URL}/api/reportes`,
+    imagenes: `${API_BASE_URL}/api/imagenes`,
+    imagenesBase: API_BASE_URL
 }
 
 export default API_BASE_URL

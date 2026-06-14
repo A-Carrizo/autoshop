@@ -6,6 +6,7 @@ import Productos from './pages/Productos'
 import NuevaVenta from './pages/NuevaVenta'
 import Clientes from './pages/Clientes'
 import Historial from './pages/Historial'
+import Inventario from './pages/Inventario'
 
 
 
@@ -59,6 +60,7 @@ export default function App() {
                 <Route path="/ventas" element={<NuevaVenta />} />
                 <Route path="/clientes" element={<Clientes />} />
                 <Route path="/historial" element={<Historial />} />
+                <Route path="/inventario" element={<Inventario />} />
             </Routes>
         </BrowserRouter>
     )

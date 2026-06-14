@@ -16,9 +16,41 @@ namespace autoshop.Server.Controllers
             _context = context;
         }
 
-        // GET: api/categorias
+        // GET: api/categorias?pagina=1&tamano=25&busqueda=
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Categoria>>> GetCategorias()
+        public async Task<IActionResult> GetCategorias(
+            [FromQuery] int pagina = 1,
+            [FromQuery] int tamano = 25,
+            [FromQuery] string? busqueda = null)
+        {
+            var query = _context.Categorias
+                .Where(c => c.Activo)
+                .AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(busqueda))
+                query = query.Where(c => c.Nombre.ToLower().Contains(busqueda.ToLower()));
+
+            var total = await query.CountAsync();
+
+            var datos = await query
+                .OrderBy(c => c.Nombre)
+                .Skip((pagina - 1) * tamano)
+                .Take(tamano)
+                .ToListAsync();
+
+            return Ok(new
+            {
+                datos,
+                total,
+                pagina,
+                tamano,
+                totalPaginas = (int)Math.Ceiling((double)total / tamano)
+            });
+        }
+
+        // GET: api/categorias/todas (para dropdowns sin paginacion)
+        [HttpGet("todas")]
+        public async Task<ActionResult<IEnumerable<Categoria>>> GetTodasCategorias()
         {
             return await _context.Categorias
                 .Where(c => c.Activo)
@@ -56,13 +88,20 @@ namespace autoshop.Server.Controllers
             return NoContent();
         }
 
-        // DELETE: api/categorias/5 (soft delete)
+        // DELETE: api/categorias/5 (eliminacion real)
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteCategoria(Guid id)
         {
             var categoria = await _context.Categorias.FindAsync(id);
             if (categoria == null) return NotFound();
-            categoria.Activo = false;
+
+            var tieneProductos = await _context.Productos
+                .AnyAsync(p => p.CategoriaId == id && p.Activo);
+
+            if (tieneProductos)
+                return BadRequest(new { mensaje = "No se puede eliminar una categoría que tiene productos activos asociados." });
+
+            _context.Categorias.Remove(categoria);
             await _context.SaveChangesAsync();
             return NoContent();
         }

@@ -59,6 +59,14 @@ export default function Sidebar() {
                 </NavLink>
             </li>
 
+            {/* Clientes */}
+            <li className="nav-item">
+                <NavLink className="nav-link" to="/clientes">
+                    <i className="fas fa-fw fa-users" style={{ color: 'var(--primary)' }}></i>
+                    <span>Clientes</span>
+                </NavLink>
+            </li>
+
             {/* Historial */}
             <li className="nav-item">
                 <NavLink className="nav-link" to="/historial">

@@ -8,6 +8,7 @@ export const API = {
     inventario: `${API_BASE_URL}/api/inventario`,
     reportes: `${API_BASE_URL}/api/reportes`,
     imagenes: `${API_BASE_URL}/api/imagenes`,
+    clientes: `${API_BASE_URL}/api/clientes`,
     imagenesBase: API_BASE_URL
 }
 

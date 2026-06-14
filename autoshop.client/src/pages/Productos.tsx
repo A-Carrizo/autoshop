@@ -140,6 +140,7 @@ export default function Productos() {
     const fileInputRef = useRef<HTMLInputElement>(null)
     const imagenUrlRef = useRef<string>('')
     const archivoRef = useRef<File | null>(null)
+    const [tieneArchivoNuevo, setTieneArchivoNuevo] = useState(false)
 
     const cargarProductos = async (pag = pagina, busq = busqueda, catId = categoriaFiltro) => {
         try {
@@ -195,6 +196,7 @@ export default function Productos() {
             setPreviewImagen('')
         }
         archivoRef.current = null
+        setTieneArchivoNuevo(false)
         setShowModal(true)
     }
 
@@ -204,6 +206,7 @@ export default function Productos() {
         setForm(formVacio)
         imagenUrlRef.current = ''
         archivoRef.current = null
+        setTieneArchivoNuevo(false)
         setPreviewImagen('')
         if (fileInputRef.current) fileInputRef.current.value = ''
     }
@@ -227,6 +230,7 @@ export default function Productos() {
         }
 
         archivoRef.current = archivo
+        setTieneArchivoNuevo(true)
         setPreviewImagen(URL.createObjectURL(archivo))
     }
 
@@ -587,13 +591,13 @@ export default function Productos() {
                                                 }
                                             </button>
                                             <small style={{ color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>JPG, PNG o WEBP — máx. 5MB</small>
-                                            {archivoRef.current && (
+                                            {tieneArchivoNuevo && (
                                                 <small style={{ color: 'var(--primary-dark)' }}>
                                                     <i className="fas fa-clock mr-1"></i>
                                                     Se subirá al guardar
                                                 </small>
                                             )}
-                                            {!archivoRef.current && previewImagen && (
+                                            {!tieneArchivoNuevo && previewImagen && (
                                                 <small style={{ color: '#2e7d32' }}>
                                                     <i className="fas fa-check-circle mr-1"></i>
                                                     Imagen guardada

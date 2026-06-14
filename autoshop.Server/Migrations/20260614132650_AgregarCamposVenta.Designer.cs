@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using autoshop.Server.Data;
@@ -11,9 +12,11 @@ using autoshop.Server.Data;
 namespace autoshop.Server.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260614132650_AgregarCamposVenta")]
+    partial class AgregarCamposVenta
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -43,39 +46,6 @@ namespace autoshop.Server.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Categorias");
-                });
-
-            modelBuilder.Entity("autoshop.Server.Models.Cliente", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<bool>("Activo")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Direccion")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Email")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("FechaCreacion")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Nombre")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Ruc")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Telefono")
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("Clientes");
                 });
 
             modelBuilder.Entity("autoshop.Server.Models.Devolucion", b =>

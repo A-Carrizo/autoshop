@@ -16,6 +16,8 @@ namespace autoshop.Server.Data
         public DbSet<DevolucionDetalle> DevolucionDetalles { get; set; }
         public DbSet<MovimientoInventario> MovimientosInventario { get; set; }
 
+        public DbSet<Cliente> Clientes { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             // Categoria

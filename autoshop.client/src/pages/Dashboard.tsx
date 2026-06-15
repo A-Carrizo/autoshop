@@ -31,8 +31,6 @@ interface DashboardData {
 }
 
 interface VentaDia { fecha: string, cantidad: number, total: number }
-interface TipoCambio { moneda: string, simbolo: string, valor: number, bandera: string }
-
 const fmt = (n: number) => Math.round(n).toLocaleString('es-PY')
 
 function MiniBar({ valor, max, color }: { valor: number, max: number, color: string }) {
@@ -83,87 +81,12 @@ function GraficoTorta({ datos }: { datos: { label: string, valor: number, color:
     )
 }
 
-// Grafico de lineas SVG
-function GraficoLineas({ datos, colores }: {
-    datos: { fecha: string, efectivo: number, transferencia: number, total: number }[]
-    colores: { efectivo: string, transferencia: string, total: string }
-}) {
-    if (datos.length === 0) return <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '20px' }}>Sin datos</div>
-    const w = 600, h = 180, padL = 50, padR = 20, padT = 10, padB = 30
-    const maxVal = Math.max(...datos.map(d => d.total), 1)
-    const xStep = (w - padL - padR) / Math.max(datos.length - 1, 1)
-
-    const toX = (i: number) => padL + i * xStep
-    const toY = (v: number) => padT + (h - padT - padB) * (1 - v / maxVal)
-
-    const linePath = (vals: number[]) =>
-        vals.map((v, i) => `${i === 0 ? 'M' : 'L'} ${toX(i)} ${toY(v)}`).join(' ')
-
-    const fmtK = (v: number) => v >= 1000000 ? `${(v / 1000000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v.toString()
-
-    const lineas = [
-        { key: 'total', vals: datos.map(d => d.total), color: colores.total, label: 'Total', dash: '6,3' },
-        { key: 'transferencia', vals: datos.map(d => d.transferencia), color: colores.transferencia, label: 'Transferencia', dash: '' },
-        { key: 'efectivo', vals: datos.map(d => d.efectivo), color: colores.efectivo, label: 'Efectivo', dash: '' },
-    ]
-
-    // Indices de etiquetas en eje X (cada ~4)
-    const xLabels = datos.reduce((acc: number[], _, i) => {
-        if (i === 0 || i === datos.length - 1 || i % Math.max(Math.floor(datos.length / 6), 1) === 0) acc.push(i)
-        return acc
-    }, [])
-
-    return (
-        <div>
-            <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ overflow: 'visible' }}>
-                {/* Grid horizontales */}
-                {[0, 0.25, 0.5, 0.75, 1].map((pct, i) => {
-                    const y = padT + (h - padT - padB) * pct
-                    return (
-                        <g key={i}>
-                            <line x1={padL} y1={y} x2={w - padR} y2={y} stroke="#e0e0e0" strokeWidth="1" />
-                            <text x={padL - 6} y={y + 4} fontSize="9" textAnchor="end" fill="#999">{fmtK(maxVal * (1 - pct))}</text>
-                        </g>
-                    )
-                })}
-                {/* Etiquetas eje X */}
-                {xLabels.map(i => (
-                    <text key={i} x={toX(i)} y={h - 2} fontSize="9" textAnchor="middle" fill="#999">
-                        {datos[i].fecha.slice(5)}
-                    </text>
-                ))}
-                {/* Lineas */}
-                {lineas.map(l => (
-                    <path key={l.key} d={linePath(l.vals)} fill="none" stroke={l.color} strokeWidth="2"
-                        strokeDasharray={l.dash} strokeLinecap="round" strokeLinejoin="round" />
-                ))}
-                {/* Puntos en ultimo valor */}
-                {lineas.map(l => {
-                    const last = datos.length - 1
-                    return <circle key={l.key} cx={toX(last)} cy={toY(l.vals[last])} r="3" fill={l.color} />
-                })}
-            </svg>
-            {/* Leyenda */}
-            <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', marginTop: '8px' }}>
-                {lineas.map(l => (
-                    <div key={l.key} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px' }}>
-                        <svg width="20" height="10">
-                            <line x1="0" y1="5" x2="20" y2="5" stroke={l.color} strokeWidth="2" strokeDasharray={l.dash} />
-                        </svg>
-                        <span style={{ color: l.color, fontWeight: 600 }}>{l.label}</span>
-                    </div>
-                ))}
-            </div>
-        </div>
-    )
-}
 
 export default function Dashboard() {
     const [data, setData] = useState<DashboardData | null>(null)
     const [ventasDia, setVentasDia] = useState<VentaDia[]>([])
     const [loading, setLoading] = useState(true)
     const [exportando, setExportando] = useState(false)
-    const [tipoCambio, setTipoCambio] = useState<TipoCambio[]>([])
     const [desde, setDesde] = useState(() => {
         const d = new Date(); d.setDate(1)
         return d.toISOString().split('T')[0]
@@ -187,32 +110,10 @@ export default function Dashboard() {
         finally { setLoading(false) }
     }, [desde, hasta])
 
-    const cargarTipoCambio = async () => {
-        try {
-            const res = await fetch('https://api.exchangerate-api.com/v4/latest/PYG')
-            if (!res.ok) throw new Error()
-            const data = await res.json()
-            const rates = data.rates
-            setTipoCambio([
-                { moneda: 'USD → PYG', simbolo: 'USD', valor: Math.round(1 / rates.USD), bandera: 'US' },
-                { moneda: 'BRL → PYG', simbolo: 'BRL', valor: Math.round(1 / rates.BRL), bandera: 'BR' },
-                { moneda: 'EUR → PYG', simbolo: 'EUR', valor: Math.round(1 / rates.EUR), bandera: 'EU' },
-            ])
-        } catch {
-            // Fallback con valores aproximados si falla la API
-            setTipoCambio([
-                { moneda: 'USD → PYG', simbolo: 'USD', valor: 7500, bandera: 'US' },
-                { moneda: 'BRL → PYG', simbolo: 'BRL', valor: 1400, bandera: 'BR' },
-                { moneda: 'EUR → PYG', simbolo: 'EUR', valor: 8200, bandera: 'EU' },
-            ])
-        }
-    }
-
     useEffect(() => {
         if (!cargado.current) {
             cargado.current = true
             cargarDatos()
-            cargarTipoCambio()
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
@@ -297,43 +198,10 @@ export default function Dashboard() {
 
     const maxVentaDia = Math.max(...ventasDia.map(v => v.total), 1)
 
-    // Preparar datos para grafico de lineas por metodo de pago
-    const datosLineas = ventasDia.map(d => ({
-        fecha: d.fecha,
-        efectivo: 0,
-        transferencia: 0,
-        total: d.total
-    }))
 
-    // Colores del grafico de lineas
-    const coloresLineas = { efectivo: '#2e7d32', transferencia: '#1565c0', total: '#888' }
-
-    const banderaURL = (cod: string) => cod === 'EU'
-        ? 'https://flagcdn.com/w40/eu.png'
-        : `https://flagcdn.com/w40/${cod.toLowerCase()}.png`
 
     return (
         <Layout titulo="Dashboard">
-
-            {/* Tipos de cambio */}
-            {tipoCambio.length > 0 && (
-                <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
-                    {tipoCambio.map((tc, i) => (
-                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'white', border: '1px solid var(--border)', borderRadius: '10px', padding: '10px 16px', boxShadow: '0 1px 6px rgba(0,0,0,0.06)' }}>
-                            <img src={banderaURL(tc.bandera)} alt={tc.simbolo} style={{ width: '28px', height: '20px', objectFit: 'cover', borderRadius: '3px' }} />
-                            <div>
-                                <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600 }}>{tc.moneda}</div>
-                                <div style={{ fontWeight: 800, fontSize: '16px', color: 'var(--primary-dark)' }}>Gs. {fmt(tc.valor)}</div>
-                            </div>
-                        </div>
-                    ))}
-                    <div style={{ display: 'flex', alignItems: 'center' }}>
-                        <small style={{ color: 'var(--text-muted)', fontSize: '11px' }}>
-                            <i className="fas fa-sync mr-1"></i>Tipo de cambio en tiempo real
-                        </small>
-                    </div>
-                </div>
-            )}
 
             {/* Filtros + exportar */}
             <div className="card mb-4">
@@ -458,46 +326,79 @@ export default function Dashboard() {
 
                     {/* Graficas */}
                     <div className="row mb-4">
-                        {/* Grafico de barras 30 dias */}
-                        <div className="col-lg-6 mb-4">
-                            <div className="card h-100">
-                                <div className="card-header"><i className="fas fa-chart-bar mr-2" style={{ color: 'var(--primary)' }}></i>Ventas por dia — 30 dias</div>
+                        {/* Grafico de barras SVG */}
+                        <div className="col-12 mb-4">
+                            <div className="card">
+                                <div className="card-header"><i className="fas fa-chart-bar mr-2" style={{ color: 'var(--primary)' }}></i>Ventas por dia — ultimos 30 dias</div>
                                 <div className="card-body">
-                                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', height: '140px', paddingBottom: '8px', overflowX: 'auto' }}>
-                                        {ventasDia.map((d, i) => {
-                                            const altura = maxVentaDia > 0 ? (d.total / maxVentaDia) * 120 : 0
-                                            const esHoy = d.fecha === new Date().toISOString().split('T')[0]
-                                            const fecha = new Date(d.fecha + 'T00:00:00')
-                                            return (
-                                                <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', minWidth: '20px', flex: 1 }}
-                                                    title={`${d.fecha}: GS ${fmt(d.total)}`}>
-                                                    <div style={{ width: '100%', height: `${Math.max(altura, d.total > 0 ? 4 : 0)}px`, background: esHoy ? 'var(--secondary)' : 'var(--primary)', borderRadius: '3px 3px 0 0', minHeight: d.total > 0 ? '4px' : '0' }}></div>
-                                                    <div style={{ fontSize: '8px', color: esHoy ? 'var(--secondary)' : 'var(--text-muted)', transform: 'rotate(-45deg)', whiteSpace: 'nowrap', transformOrigin: 'center', fontWeight: esHoy ? 700 : 400 }}>
-                                                        {fecha.getDate()}/{fecha.getMonth() + 1}
-                                                    </div>
-                                                </div>
-                                            )
-                                        })}
+                                    {(() => {
+                                        const W = 1200, H = 220, padL = 60, padR = 20, padT = 20, padB = 40
+                                        const n = ventasDia.length
+                                        if (n === 0) return <div className="text-center py-4" style={{ color: 'var(--text-muted)' }}>Sin datos</div>
+                                        const barW = Math.max(4, (W - padL - padR) / n - 3)
+                                        const gap = (W - padL - padR - barW * n) / Math.max(n - 1, 1)
+                                        const chartH = H - padT - padB
+                                        const hoy = new Date().toISOString().split('T')[0]
+                                        const fmtK = (v: number) => v >= 1000000 ? `${(v / 1000000).toFixed(1)}M` : v >= 1000 ? `${Math.round(v / 1000)}k` : v.toString()
+                                        return (
+                                            <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: 'block', overflow: 'visible' }}>
+                                                <defs>
+                                                    <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
+                                                        <stop offset="0%" stopColor="#D4A017" />
+                                                        <stop offset="100%" stopColor="#a07010" />
+                                                    </linearGradient>
+                                                </defs>
+                                                {[0.25, 0.5, 0.75, 1].map((pct, gi) => {
+                                                    const y = padT + chartH * (1 - pct)
+                                                    return (
+                                                        <g key={gi}>
+                                                            <line x1={padL} y1={y} x2={W - padR} y2={y} stroke="#ececec" strokeWidth="1" strokeDasharray="4,3" />
+                                                            <text x={padL - 6} y={y + 4} fontSize="9" textAnchor="end" fill="#bbb">{fmtK(maxVentaDia * pct)}</text>
+                                                        </g>
+                                                    )
+                                                })}
+                                                <line x1={padL} y1={padT + chartH} x2={W - padR} y2={padT + chartH} stroke="#ddd" strokeWidth="1" />
+                                                {ventasDia.map((d, i) => {
+                                                    const x = padL + i * (barW + gap)
+                                                    const bH = maxVentaDia > 0 ? (d.total / maxVentaDia) * chartH : 0
+                                                    const y = padT + chartH - Math.max(bH, d.total > 0 ? 3 : 0)
+                                                    const esHoy = d.fecha === hoy
+                                                    const fecha = new Date(d.fecha + 'T00:00:00')
+                                                    const label = `${fecha.getDate()}/${fecha.getMonth() + 1}`
+                                                    const mostrarLabel = n <= 15 || i % Math.ceil(n / 15) === 0 || esHoy
+                                                    return (
+                                                        <g key={i}>
+                                                            <rect x={x} y={y} width={barW} height={Math.max(bH, d.total > 0 ? 3 : 1)}
+                                                                fill={esHoy ? '#c62828' : d.total > 0 ? 'url(#barGrad)' : '#ececec'}
+                                                                rx="3" ry="3" opacity={d.total === 0 ? 0.3 : 1}>
+                                                                <title>{d.fecha}: GS {fmt(d.total)} ({d.cantidad} ventas)</title>
+                                                            </rect>
+                                                            {d.total > 0 && bH > 18 && (
+                                                                <text x={x + barW / 2} y={y - 4} fontSize="8" textAnchor="middle"
+                                                                    fill={esHoy ? '#c62828' : '#999'} fontWeight={esHoy ? '700' : '400'}>
+                                                                    {fmtK(d.total)}
+                                                                </text>
+                                                            )}
+                                                            {mostrarLabel && (
+                                                                <text x={x + barW / 2} y={padT + chartH + 14} fontSize="8" textAnchor="middle"
+                                                                    fill={esHoy ? '#c62828' : '#bbb'} fontWeight={esHoy ? '700' : '400'}>
+                                                                    {label}
+                                                                </text>
+                                                            )}
+                                                        </g>
+                                                    )
+                                                })}
+                                            </svg>
+                                        )
+                                    })()}
+                                    <div style={{ display: 'flex', gap: '16px', marginTop: '4px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                                        <span><span style={{ display: 'inline-block', width: '10px', height: '10px', background: '#c62828', borderRadius: '2px', marginRight: '4px' }}></span>Hoy</span>
+                                        <span><span style={{ display: 'inline-block', width: '10px', height: '10px', background: '#D4A017', borderRadius: '2px', marginRight: '4px' }}></span>Otros dias</span>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Grafico de lineas por metodo de pago */}
-                        <div className="col-lg-6 mb-4">
-                            <div className="card h-100">
-                                <div className="card-header d-flex justify-content-between align-items-center">
-                                    <span><i className="fas fa-chart-line mr-2" style={{ color: 'var(--primary)' }}></i>Ingresos por metodo de pago</span>
-                                    <small style={{ color: 'var(--text-muted)' }}>ultimos 30 dias</small>
-                                </div>
-                                <div className="card-body">
-                                    <GraficoLineas datos={datosLineas} colores={coloresLineas} />
-                                    <small style={{ color: 'var(--text-muted)', fontSize: '11px', display: 'block', marginTop: '8px' }}>
-                                        Nota: el desglose por metodo por dia estara disponible proximamente
-                                    </small>
-                                </div>
-                            </div>
-                        </div>
                     </div>
 
                     <div className="row mb-4">

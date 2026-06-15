@@ -84,7 +84,7 @@ export default function Sidebar() {
             </li>
 
             <hr className="sidebar-divider" />
-            <div className="sidebar-heading" style={{ color: 'var(--text-muted)' }}>Finanzas</div>
+          
 
 
 

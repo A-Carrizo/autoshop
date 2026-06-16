@@ -3,6 +3,7 @@ import toast from 'react-hot-toast'
 import Layout from '../components/layout/Layout'
 import ConfirmModal from '../components/ui/ConfirmModal'
 import { API } from '../config/api'
+import logo from '../assets/logo_autoshop.jpeg'
 
 interface Producto {
     id: string
@@ -233,7 +234,8 @@ export default function NuevaVenta() {
                     <div id="comprobante" style={{ background: 'white', border: '1px solid #ddd', borderRadius: '8px', padding: '24px', fontFamily: 'monospace', fontSize: '13px' }}>
                         {/* Encabezado negocio */}
                         <div style={{ textAlign: 'center', marginBottom: '16px', borderBottom: '1px dashed #aaa', paddingBottom: '12px' }}>
-                            <div style={{ fontWeight: 800, fontSize: '18px', letterSpacing: '1px' }}>MAGCARSHOP</div>
+                            <img src={logo} alt="MagCar Auto Shop" style={{ width: '120px', objectFit: 'contain', marginBottom: '8px', display: 'block', margin: '0 auto 8px' }} />
+                            <div style={{ fontWeight: 800, fontSize: '16px', letterSpacing: '1px' }}>MAGCARSHOP</div>
                             <div style={{ fontSize: '11px', color: '#555' }}>Accesorios y Luces Automotrices</div>
                             <div style={{ fontSize: '11px', color: '#555' }}>Tel: (021) 000-0000</div>
                             <div style={{ fontSize: '11px', color: '#555' }}>Asunción, Paraguay</div>

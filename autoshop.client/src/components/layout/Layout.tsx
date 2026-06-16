@@ -1,6 +1,7 @@
 import { ReactNode } from 'react'
 import Sidebar from './Sidebar'
 import Navbar from './Navbar'
+import { useSidebar } from '../../context/SidebarContext'
 
 interface LayoutProps {
     children: ReactNode
@@ -8,33 +9,30 @@ interface LayoutProps {
     sinFooter?: boolean
 }
 
+const SIDEBAR_FULL = 250
+const SIDEBAR_MINI = 64
+
 export default function Layout({ children, titulo, sinFooter = false }: LayoutProps) {
+    const { collapsed } = useSidebar()
+    const sidebarW = collapsed ? SIDEBAR_MINI : SIDEBAR_FULL
+
     return (
         <div id="wrapper" style={{ display: 'flex' }}>
-
-            {/* Sidebar */}
             <Sidebar />
 
-            {/* Content Wrapper */}
             <div id="content-wrapper" style={{
-                marginLeft: '250px',
-                width: '100%',
+                marginLeft: `${sidebarW}px`,
+                width: `calc(100% - ${sidebarW}px)`,
                 minHeight: '100vh',
-                backgroundColor: 'var(--light)'
+                backgroundColor: 'var(--light)',
+                transition: 'margin-left 0.25s ease, width 0.25s ease',
             }}>
-
-                {/* Navbar */}
                 <Navbar titulo={titulo} />
 
-                {/* Main Content */}
-                <div id="content" style={{
-                    marginTop: '60px',
-                    padding: '24px'
-                }}>
+                <div id="content" style={{ marginTop: '60px', padding: '24px' }}>
                     {children}
                 </div>
 
-                {/* Footer */}
                 {!sinFooter && (
                     <footer style={{
                         backgroundColor: 'white',
@@ -44,10 +42,9 @@ export default function Layout({ children, titulo, sinFooter = false }: LayoutPr
                         fontSize: '13px',
                         color: 'var(--text-muted)'
                     }}>
-                        © 2026 MagCar Auto Shop — Sistema de Gestión
+                        © 2026 MagCar Auto Shop — Sistema de Gestion
                     </footer>
                 )}
-
             </div>
         </div>
     )

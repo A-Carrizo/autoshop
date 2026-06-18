@@ -19,6 +19,11 @@ namespace autoshop.Server.Data
         public DbSet<Cliente> Clientes { get; set; }
         public DbSet<Usuario> Usuarios { get; set; }
 
+        // Tienda online
+        public DbSet<ClienteTienda> ClientesTienda { get; set; }
+        public DbSet<Pedido> Pedidos { get; set; }
+        public DbSet<PedidoDetalle> PedidoDetalles { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             // Categoria
@@ -114,6 +119,43 @@ namespace autoshop.Server.Data
                 e.Property(x => x.Tipo).IsRequired().HasMaxLength(20);
                 e.HasOne(x => x.Producto)
                  .WithMany(x => x.Movimientos)
+                 .HasForeignKey(x => x.ProductoId);
+            });
+
+            // ClienteTienda
+            modelBuilder.Entity<ClienteTienda>(e =>
+            {
+                e.HasKey(x => x.Id);
+                e.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
+                e.Property(x => x.Nombre).IsRequired().HasMaxLength(150);
+                e.Property(x => x.Email).IsRequired().HasMaxLength(150);
+                e.HasIndex(x => x.Email).IsUnique();
+            });
+
+            // Pedido
+            modelBuilder.Entity<Pedido>(e =>
+            {
+                e.HasKey(x => x.Id);
+                e.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
+                e.Property(x => x.NumeroPedido).IsRequired().HasMaxLength(20);
+                e.Property(x => x.Total).HasPrecision(18, 2);
+                e.HasOne(x => x.ClienteTienda)
+                 .WithMany(x => x.Pedidos)
+                 .HasForeignKey(x => x.ClienteTiendaId);
+            });
+
+            // PedidoDetalle
+            modelBuilder.Entity<PedidoDetalle>(e =>
+            {
+                e.HasKey(x => x.Id);
+                e.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
+                e.Property(x => x.PrecioUnitario).HasPrecision(18, 2);
+                e.Property(x => x.Subtotal).HasPrecision(18, 2);
+                e.HasOne(x => x.Pedido)
+                 .WithMany(x => x.Detalles)
+                 .HasForeignKey(x => x.PedidoId);
+                e.HasOne(x => x.Producto)
+                 .WithMany()
                  .HasForeignKey(x => x.ProductoId);
             });
         }

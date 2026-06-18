@@ -4,4 +4,8 @@
     <Deploy />
   </Project>
   <Project Path="autoshop.Server/autoshop.Server.csproj" />
+  <Project Path="autoshop.tienda/autoshop.tienda.esproj">
+    <Build />
+    <Deploy />
+  </Project>
 </Solution>

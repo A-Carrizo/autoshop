@@ -25,6 +25,12 @@ const sections: Section[] = [
             { to: '/devoluciones', icon: 'fa-undo', label: 'Devoluciones' },
         ]
     },
+    {
+        heading: 'TIENDA ONLINE',
+        items: [
+            { to: '/pedidos-online', icon: 'fa-store', label: 'Pedidos Online' },
+        ]
+    },
 ]
 
 const SB = {

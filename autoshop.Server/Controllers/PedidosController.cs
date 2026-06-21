@@ -227,13 +227,14 @@ namespace autoshop.Server.Controllers
         {
             var pedido = await _context.Pedidos
                 .Include(p => p.Detalles)
+                .Include(p => p.ClienteTienda)
                 .FirstOrDefaultAsync(p => p.Id == id);
 
             if (pedido == null) return NotFound();
             if (pedido.Estado != "PENDIENTE")
                 return BadRequest(new { mensaje = "Solo se pueden confirmar pedidos pendientes." });
 
-            // Validar stock y descontar
+            // Validar stock antes de tocar nada
             foreach (var detalle in pedido.Detalles)
             {
                 var inventario = await _context.Inventarios.FirstOrDefaultAsync(i => i.ProductoId == detalle.ProductoId);
@@ -241,29 +242,73 @@ namespace autoshop.Server.Controllers
                     return BadRequest(new { mensaje = $"Stock insuficiente para '{detalle.ProductoNombre}'. No se puede confirmar el pedido." });
             }
 
-            foreach (var detalle in pedido.Detalles)
+            using var transaccion = await _context.Database.BeginTransactionAsync();
+            try
             {
-                var inventario = await _context.Inventarios.FirstAsync(i => i.ProductoId == detalle.ProductoId);
-                inventario.StockActual -= detalle.Cantidad;
-                inventario.UltimaActualizacion = DateTime.UtcNow;
+                // Descontar stock y registrar movimientos
+                foreach (var detalle in pedido.Detalles)
+                {
+                    var inventario = await _context.Inventarios.FirstAsync(i => i.ProductoId == detalle.ProductoId);
+                    inventario.StockActual -= detalle.Cantidad;
+                    inventario.UltimaActualizacion = DateTime.UtcNow;
 
-                _context.MovimientosInventario.Add(new MovimientoInventario
+                    _context.MovimientosInventario.Add(new MovimientoInventario
+                    {
+                        Id = Guid.NewGuid(),
+                        ProductoId = detalle.ProductoId,
+                        Tipo = "VENTA",
+                        Cantidad = -detalle.Cantidad,
+                        Referencia = pedido.NumeroPedido,
+                        Fecha = DateTime.UtcNow,
+                        Notas = $"Pedido online {pedido.NumeroPedido} confirmado"
+                    });
+                }
+
+                // Crear la Venta correspondiente, para que se refleje en Historial/Reportes del POS
+                var venta = new Venta
                 {
                     Id = Guid.NewGuid(),
-                    ProductoId = detalle.ProductoId,
-                    Tipo = "VENTA",
-                    Cantidad = -detalle.Cantidad,
-                    Referencia = pedido.NumeroPedido,
+                    NumeroFactura = pedido.NumeroPedido,
                     Fecha = DateTime.UtcNow,
-                    Notas = $"Pedido online {pedido.NumeroPedido} confirmado"
-                });
+                    ClienteNombre = pedido.ClienteNombre,
+                    ClienteRuc = null,
+                    MetodoPago = pedido.MetodoPago,
+                    TipoComprobante = "PEDIDO_ONLINE",
+                    Subtotal = pedido.Total,
+                    Descuento = 0,
+                    Total = pedido.Total,
+                    Estado = "COMPLETADA"
+                };
+
+                foreach (var detalle in pedido.Detalles)
+                {
+                    venta.Detalles.Add(new VentaDetalle
+                    {
+                        Id = Guid.NewGuid(),
+                        VentaId = venta.Id,
+                        ProductoId = detalle.ProductoId,
+                        Cantidad = detalle.Cantidad,
+                        PrecioUnitario = detalle.PrecioUnitario,
+                        DescuentoPct = 0,
+                        Subtotal = detalle.Subtotal
+                    });
+                }
+
+                _context.Ventas.Add(venta);
+
+                pedido.Estado = "CONFIRMADO";
+                pedido.FechaConfirmacion = DateTime.UtcNow;
+
+                await _context.SaveChangesAsync();
+                await transaccion.CommitAsync();
+            }
+            catch
+            {
+                await transaccion.RollbackAsync();
+                return StatusCode(500, new { mensaje = "Error al confirmar el pedido. No se realizaron cambios." });
             }
 
-            pedido.Estado = "CONFIRMADO";
-            pedido.FechaConfirmacion = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
-
-            return Ok(new { mensaje = "Pedido confirmado. Stock actualizado." });
+            return Ok(new { mensaje = "Pedido confirmado. Stock actualizado y venta registrada." });
         }
 
         [HttpPut("admin/{id}/entregar")]

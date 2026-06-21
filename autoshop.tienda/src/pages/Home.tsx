@@ -53,8 +53,9 @@ export default function Home() {
 
         let cancelado = false
 
-        const cargar = async () => {
-            setCargando(true)
+        const esperar = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
+        const intentarCargar = async (intento: number): Promise<boolean> => {
             try {
                 const params = new URLSearchParams({ pagina: String(paginaAPedir), tamano: '24' })
                 if (busqueda) params.set('busqueda', busqueda)
@@ -62,16 +63,34 @@ export default function Home() {
                 if (orden) params.set('orden', orden)
 
                 const res = await fetch(`${API.catalogo}?${params.toString()}`)
+                if (!res.ok) throw new Error('Respuesta no exitosa')
                 const data = await res.json()
-                if (cancelado) return
+                if (cancelado) return true
                 setProductos(data.datos)
                 setTotalPaginas(data.totalPaginas)
                 if (filtrosCambiaron) setPagina(1)
+                return true
             } catch {
-                if (!cancelado) toast.error('No se pudieron cargar los productos')
-            } finally {
-                if (!cancelado) setCargando(false)
+                return false
             }
+        }
+
+        const cargar = async () => {
+            const MAX_INTENTOS = 4
+            const ESPERA_MS = 1000
+
+            setCargando(true)
+            for (let intento = 1; intento <= MAX_INTENTOS; intento++) {
+                const exito = await intentarCargar(intento)
+                if (cancelado) return
+                if (exito) break
+                if (intento === MAX_INTENTOS) {
+                    toast.error('No se pudieron cargar los productos. Verifica tu conexion.')
+                } else {
+                    await esperar(ESPERA_MS)
+                }
+            }
+            if (!cancelado) setCargando(false)
         }
         cargar()
 

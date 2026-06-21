@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://localhost:32769'
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://localhost:32770'
 
 export const API = {
     categorias: `${API_BASE_URL}/api/categorias`,
@@ -10,6 +10,7 @@ export const API = {
     imagenes: `${API_BASE_URL}/api/imagenes`,
     auth: `${API_BASE_URL}/api/auth`,
     clientes: `${API_BASE_URL}/api/clientes`,
+    pedidos: `${API_BASE_URL}/api/tienda/pedidos`,
     imagenesBase: API_BASE_URL
 }
 

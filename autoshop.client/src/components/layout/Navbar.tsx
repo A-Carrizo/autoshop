@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { useSidebar } from '../../context/SidebarContext'
 import { API } from '../../config/api'
 
@@ -163,9 +163,9 @@ export default function Navbar({ titulo }: NavbarProps) {
                     <span style={{ fontSize: '14px', color: NAV.text, fontWeight: 500 }}>{nombre}</span>
                 </button>
                 <div className="dropdown-menu dropdown-menu-end shadow">
-                    <a className="dropdown-item" href="/cambiar-contrasena">
-                        <i className="fas fa-key fa-sm mr-2" style={{ color: '#6b7c93' }}></i>Cambiar contrasena
-                    </a>
+                    <Link className="dropdown-item" to="/cambiar-contrasena">
+                        <i className="fas fa-key fa-sm mr-2" style={{ color: '#6b7c93' }}></i>Cambiar contraseña
+                    </Link>
                     <div className="dropdown-divider"></div>
                     <button className="dropdown-item" onClick={cerrarSesion}
                         style={{ color: '#CC0000', background: 'none', border: 'none', width: '100%', textAlign: 'left', padding: '0.25rem 1rem', cursor: 'pointer' }}>

@@ -34,3 +34,8 @@ a {
 button {
     font-family: inherit;
 }
+
+/* Animacion de zoom en imagen de producto al hacer hover en la tarjeta */
+.tienda-img-zoom-container:hover .tienda-img-zoom {
+    transform: scale(1.08);
+}

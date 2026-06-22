@@ -152,19 +152,32 @@ export default function Home() {
                         gap: '20px',
                     }}>
                         {productos.map(p => (
-                            <div key={p.id} style={{
-                                background: '#fff', borderRadius: '12px', overflow: 'hidden',
-                                border: `1px solid ${COL.border}`, display: 'flex', flexDirection: 'column',
-                            }}>
+                            <div key={p.id}
+                                style={{
+                                    background: '#fff', borderRadius: '12px', overflow: 'hidden',
+                                    border: `1px solid ${COL.border}`, display: 'flex', flexDirection: 'column',
+                                    transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                                    cursor: 'default',
+                                }}
+                                onMouseEnter={e => {
+                                    e.currentTarget.style.transform = 'translateY(-6px)'
+                                    e.currentTarget.style.boxShadow = '0 12px 24px rgba(26,54,93,0.15)'
+                                }}
+                                onMouseLeave={e => {
+                                    e.currentTarget.style.transform = 'translateY(0)'
+                                    e.currentTarget.style.boxShadow = 'none'
+                                }}
+                            >
                                 <Link to={`/producto/${p.id}`} style={{ textDecoration: 'none' }}>
-                                    <div style={{
+                                    <div className="tienda-img-zoom-container" style={{
                                         position: 'relative', height: '160px', background: '#fff',
                                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                                         borderBottom: `1px solid #f0f3f7`, overflow: 'hidden',
                                     }}>
                                         {p.imagenUrl ? (
                                             <img src={`${API.imagenesBase}${p.imagenUrl}`} alt={p.nombre}
-                                                style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                className="tienda-img-zoom"
+                                                style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.3s ease' }} />
                                         ) : (
                                             <i className="fas fa-image" style={{ fontSize: '36px', color: '#cbd5e0' }}></i>
                                         )}

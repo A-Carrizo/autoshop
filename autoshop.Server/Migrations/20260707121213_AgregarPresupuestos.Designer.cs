@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using autoshop.Server.Data;
@@ -11,9 +12,11 @@ using autoshop.Server.Data;
 namespace autoshop.Server.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260707121213_AgregarPresupuestos")]
+    partial class AgregarPresupuestos
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -606,10 +609,6 @@ namespace autoshop.Server.Migrations
                     b.Property<int>("Cantidad")
                         .HasColumnType("integer");
 
-                    b.Property<string>("Descripcion")
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
-
                     b.Property<decimal>("DescuentoPct")
                         .HasPrecision(5, 2)
                         .HasColumnType("numeric(5,2)");
@@ -618,19 +617,12 @@ namespace autoshop.Server.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
-                    b.Property<Guid?>("ProductoId")
+                    b.Property<Guid>("ProductoId")
                         .HasColumnType("uuid");
 
                     b.Property<decimal>("Subtotal")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
-
-                    b.Property<string>("Tipo")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasDefaultValue("PRODUCTO");
 
                     b.Property<Guid>("VentaId")
                         .HasColumnType("uuid");
@@ -767,7 +759,9 @@ namespace autoshop.Server.Migrations
                 {
                     b.HasOne("autoshop.Server.Models.Producto", "Producto")
                         .WithMany("VentaDetalles")
-                        .HasForeignKey("ProductoId");
+                        .HasForeignKey("ProductoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.HasOne("autoshop.Server.Models.Venta", "Venta")
                         .WithMany("Detalles")

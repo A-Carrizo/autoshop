@@ -16,7 +16,6 @@ namespace autoshop.Server.Controllers
             _context = context;
         }
 
-        // GET: api/ventas?pagina=1&tamano=25
         [HttpGet]
         public async Task<IActionResult> GetVentas(
             [FromQuery] int pagina = 1,
@@ -63,23 +62,14 @@ namespace autoshop.Server.Controllers
                 })
                 .ToListAsync();
 
-            return Ok(new
-            {
-                datos,
-                total,
-                pagina,
-                tamano,
-                totalPaginas = (int)Math.Ceiling((double)total / tamano)
-            });
+            return Ok(new { datos, total, pagina, tamano, totalPaginas = (int)Math.Ceiling((double)total / tamano) });
         }
 
-        // GET: api/ventas/5
         [HttpGet("{id}")]
         public async Task<IActionResult> GetVenta(Guid id)
         {
             var venta = await _context.Ventas
-                .Include(v => v.Detalles)
-                    .ThenInclude(d => d.Producto)
+                .Include(v => v.Detalles).ThenInclude(d => d.Producto)
                 .FirstOrDefaultAsync(v => v.Id == id);
 
             if (venta == null) return NotFound();
@@ -101,8 +91,9 @@ namespace autoshop.Server.Controllers
                 {
                     d.Id,
                     d.ProductoId,
-                    d.Producto.Nombre,
-                    d.Producto.CodigoBarras,
+                    d.Tipo,
+                    Nombre = d.Producto != null ? d.Producto.Nombre : d.Descripcion,
+                    CodigoBarras = d.Producto != null ? d.Producto.CodigoBarras : "-",
                     d.Cantidad,
                     d.PrecioUnitario,
                     d.DescuentoPct,
@@ -111,64 +102,49 @@ namespace autoshop.Server.Controllers
             });
         }
 
-        // POST: api/ventas
         [HttpPost]
         public async Task<IActionResult> PostVenta(VentaCreateDto dto)
         {
             if (dto.Items == null || dto.Items.Count == 0)
                 return BadRequest(new { mensaje = "La venta debe tener al menos un producto." });
 
-            // Generar número de factura
-            var ultimaVenta = await _context.Ventas
-                .OrderByDescending(v => v.Fecha)
-                .FirstOrDefaultAsync();
-
+            var ultimaVenta = await _context.Ventas.OrderByDescending(v => v.Fecha).FirstOrDefaultAsync();
             int siguiente = 1;
             if (ultimaVenta != null && ultimaVenta.NumeroFactura.StartsWith("F-"))
-            {
-                if (int.TryParse(ultimaVenta.NumeroFactura.Replace("F-", ""), out int ultimo))
-                    siguiente = ultimo + 1;
-            }
+                if (int.TryParse(ultimaVenta.NumeroFactura.Replace("F-", ""), out int ultimo)) siguiente = ultimo + 1;
 
             var numeroFactura = $"F-{siguiente:D6}";
-
-            // Verificar stock y calcular totales
-            decimal subtotal = 0;
-            decimal descuentoTotal = 0;
+            decimal subtotal = 0, descuentoTotal = 0;
             var detalles = new List<VentaDetalle>();
             var movimientos = new List<MovimientoInventario>();
 
             foreach (var item in dto.Items)
             {
-                var producto = await _context.Productos
-                    .Include(p => p.Inventario)
+                var producto = await _context.Productos.Include(p => p.Inventario)
                     .FirstOrDefaultAsync(p => p.Id == item.ProductoId && p.Activo);
 
-                if (producto == null)
-                    return BadRequest(new { mensaje = $"Producto no encontrado." });
-
+                if (producto == null) return BadRequest(new { mensaje = "Producto no encontrado." });
                 if (producto.Inventario == null || producto.Inventario.StockActual < item.Cantidad)
-                    return BadRequest(new { mensaje = $"Stock insuficiente para '{producto.Nombre}'. Stock disponible: {producto.Inventario?.StockActual ?? 0}" });
+                    return BadRequest(new { mensaje = $"Stock insuficiente para '{producto.Nombre}'." });
 
                 var descPct = item.DescuentoPct > 0 ? item.DescuentoPct : producto.DescuentoPct;
-                var precioUnitario = producto.PrecioVenta;
-                var subtotalItem = precioUnitario * item.Cantidad;
+                var subtotalItem = producto.PrecioVenta * item.Cantidad;
                 var descuentoItem = subtotalItem * (descPct / 100);
-
                 subtotal += subtotalItem;
                 descuentoTotal += descuentoItem;
 
                 detalles.Add(new VentaDetalle
                 {
                     Id = Guid.NewGuid(),
+                    Tipo = "PRODUCTO",
                     ProductoId = producto.Id,
+                    Descripcion = producto.Nombre,
                     Cantidad = item.Cantidad,
-                    PrecioUnitario = precioUnitario,
+                    PrecioUnitario = producto.PrecioVenta,
                     DescuentoPct = descPct,
                     Subtotal = subtotalItem - descuentoItem
                 });
 
-                // Actualizar stock
                 producto.Inventario.StockActual -= item.Cantidad;
                 producto.Inventario.UltimaActualizacion = DateTime.UtcNow;
 
@@ -199,42 +175,28 @@ namespace autoshop.Server.Controllers
                 Estado = "COMPLETADA"
             };
 
-            foreach (var detalle in detalles)
-                detalle.VentaId = venta.Id;
+            foreach (var detalle in detalles) detalle.VentaId = venta.Id;
 
             _context.Ventas.Add(venta);
             _context.VentaDetalles.AddRange(detalles);
             _context.MovimientosInventario.AddRange(movimientos);
-
             await _context.SaveChangesAsync();
 
-            return Ok(new
-            {
-                id = venta.Id,
-                numeroFactura = venta.NumeroFactura,
-                total = venta.Total,
-                mensaje = "Venta registrada correctamente"
-            });
+            return Ok(new { id = venta.Id, numeroFactura = venta.NumeroFactura, total = venta.Total, mensaje = "Venta registrada correctamente" });
         }
 
-        // DELETE: api/ventas/5 (anular venta)
         [HttpDelete("{id}")]
         public async Task<IActionResult> AnularVenta(Guid id)
         {
-            var venta = await _context.Ventas
-                .Include(v => v.Detalles)
-                .FirstOrDefaultAsync(v => v.Id == id);
-
+            var venta = await _context.Ventas.Include(v => v.Detalles).FirstOrDefaultAsync(v => v.Id == id);
             if (venta == null) return NotFound();
-            if (venta.Estado == "ANULADA")
-                return BadRequest(new { mensaje = "La venta ya está anulada." });
+            if (venta.Estado == "ANULADA") return BadRequest(new { mensaje = "La venta ya está anulada." });
 
-            // Devolver stock
             foreach (var detalle in venta.Detalles)
             {
-                var inventario = await _context.Inventarios
-                    .FirstOrDefaultAsync(i => i.ProductoId == detalle.ProductoId);
+                if (detalle.ProductoId == null) continue; // servicios no tienen stock
 
+                var inventario = await _context.Inventarios.FirstOrDefaultAsync(i => i.ProductoId == detalle.ProductoId);
                 if (inventario != null)
                 {
                     inventario.StockActual += detalle.Cantidad;
@@ -244,7 +206,7 @@ namespace autoshop.Server.Controllers
                 _context.MovimientosInventario.Add(new MovimientoInventario
                 {
                     Id = Guid.NewGuid(),
-                    ProductoId = detalle.ProductoId,
+                    ProductoId = detalle.ProductoId!.Value,
                     Tipo = "DEVOLUCION",
                     Cantidad = detalle.Cantidad,
                     Referencia = venta.NumeroFactura,
@@ -255,7 +217,6 @@ namespace autoshop.Server.Controllers
 
             venta.Estado = "ANULADA";
             await _context.SaveChangesAsync();
-
             return Ok(new { mensaje = $"Venta {venta.NumeroFactura} anulada correctamente" });
         }
     }

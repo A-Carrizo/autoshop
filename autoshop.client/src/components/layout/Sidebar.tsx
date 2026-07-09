@@ -23,6 +23,7 @@ const sections: Section[] = [
             { to: '/clientes', icon: 'fa-users', label: 'Clientes' },
             { to: '/historial', icon: 'fa-history', label: 'Historial' },
             { to: '/devoluciones', icon: 'fa-undo', label: 'Devoluciones' },
+            { to: '/presupuestos', icon: 'fa-file-invoice-dollar', label: 'Presupuestos' },
         ]
     },
     {

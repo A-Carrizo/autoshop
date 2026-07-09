@@ -15,6 +15,7 @@ import ResetPassword from './pages/ResetPassword'
 import CambiarPasswordObligatorio from './pages/CambiarPasswordObligatorio'
 import PedidosOnline from './pages/PedidosOnline'
 import CambiarContrasena from './pages/CambiarContrasena'
+import Presupuestos from './pages/Presupuestos'
 
 import './styles/magcar.css'
 import 'bootstrap/dist/css/bootstrap.min.css'
@@ -100,6 +101,7 @@ export default function App() {
                     <Route path="/devoluciones" element={<RutaPrivada><Devoluciones /></RutaPrivada>} />
                     <Route path="/pedidos-online" element={<RutaPrivada><PedidosOnline /></RutaPrivada>} />
                     <Route path="/cambiar-contrasena" element={<RutaPrivada><CambiarContrasena /></RutaPrivada>} />
+                    <Route path="/presupuestos" element={<RutaPrivada><Presupuestos /></RutaPrivada>} />
 
                     {/* Cualquier ruta desconocida va al login */}
                     <Route path="*" element={<Navigate to="/login" replace />} />

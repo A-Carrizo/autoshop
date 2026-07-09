@@ -11,6 +11,7 @@ export const API = {
     auth: `${API_BASE_URL}/api/auth`,
     clientes: `${API_BASE_URL}/api/clientes`,
     pedidos: `${API_BASE_URL}/api/tienda/pedidos`,
+    presupuestos: `${API_BASE_URL}/api/presupuestos`,
     imagenesBase: API_BASE_URL
 }
 

@@ -42,25 +42,25 @@ function MiniBar({ valor, max, color }: { valor: number, max: number, color: str
     )
 }
 
-// Grafico de torta SVG — angulo como variable mutable con ref
+// Grafico de torta SVG — angulo calculado de forma inmutable con reduce
 function GraficoTorta({ datos }: { datos: { label: string, valor: number, color: string }[] }) {
     const total = datos.reduce((acc, d) => acc + d.valor, 0)
     if (total === 0) return <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '20px' }}>Sin datos</div>
     const cx = 80, cy = 80, r = 70
-    let anguloAcum = -90
-    const segmentos = datos.map(d => {
+    const segmentos = datos.reduce<{ label: string, valor: number, color: string, path: string, pct: number, fin: number }[]>((acc, d) => {
+        const inicio = acc.length > 0 ? acc[acc.length - 1].fin : -90
         const pct = d.valor / total
-        const inicio = anguloAcum
-        anguloAcum += pct * 360
+        const fin = inicio + pct * 360
         const startRad = (inicio * Math.PI) / 180
-        const endRad = (anguloAcum * Math.PI) / 180
+        const endRad = (fin * Math.PI) / 180
         const x1 = cx + r * Math.cos(startRad)
         const y1 = cy + r * Math.sin(startRad)
         const x2 = cx + r * Math.cos(endRad)
         const y2 = cy + r * Math.sin(endRad)
         const largeArc = pct > 0.5 ? 1 : 0
-        return { ...d, path: `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`, pct }
-    })
+        acc.push({ ...d, path: `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`, pct, fin })
+        return acc
+    }, [])
     return (
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
             <svg width="160" height="160" viewBox="0 0 160 160">
@@ -118,14 +118,14 @@ export default function Dashboard() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
-    const aplicarAtajo = (dias: number) => {
+    const aplicarAtajo = useCallback((dias: number) => {
         const h = new Date().toISOString().split('T')[0]
         const d = dias === -1
             ? new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]
             : dias === 0 ? h
                 : new Date(Date.now() - dias * 86400000).toISOString().split('T')[0]
         setDesde(d); setHasta(h)
-    }
+    }, [])
 
     const exportarCSV = () => {
         if (!data) return

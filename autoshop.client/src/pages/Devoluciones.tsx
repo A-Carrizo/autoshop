@@ -3,306 +3,339 @@ import toast from 'react-hot-toast'
 import Layout from '../components/layout/Layout'
 import { API } from '../config/api'
 
-interface DevolucionLista {
+// ── Interfaces ───────────────────────────────────────────────────────────────
+interface DevolucionDetalle {
+    productoId: string
+    nombreProducto: string
+    cantidad: number
+    monto: number
+}
+
+interface Devolucion {
     id: string
     fecha: string
     motivo: string
     montoDevuelto: number
     numeroFactura: string
-    clienteNombre?: string
+    clienteNombre: string | null
     cantidadItems: number
-}
-
-interface DetalleVenta {
-    id: string
-    productoId: string
-    nombreProducto: string
-    cantidad: number
-    cantidadDevuelta: number
-    cantidadDisponible: number
-    precioUnitario: number
-    descuentoPct: number
-    subtotal: number
+    detalles: DevolucionDetalle[]
 }
 
 interface VentaParaDevolucion {
     id: string
     numeroFactura: string
     fecha: string
-    clienteNombre?: string
+    clienteNombre: string | null
     total: number
     metodoPago: string
-    detalles: DetalleVenta[]
+    detalles: {
+        id: string
+        productoId: string
+        nombreProducto: string
+        cantidad: number
+        cantidadDevuelta: number
+        cantidadDisponible: number
+        precioUnitario: number
+        descuentoPct: number
+        subtotal: number
+    }[]
 }
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
 const fmt = (n: number) => Math.round(n).toLocaleString('es-PY')
+const fmtFecha = (f: string) =>
+    new Date(f).toLocaleDateString('es-PY', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+    } as Intl.DateTimeFormatOptions)
 
+const thStyle: React.CSSProperties = {
+    background: 'var(--dark)', color: 'white',
+    padding: '10px 16px', fontWeight: 600,
+    fontSize: '13px', textAlign: 'left',
+}
+
+// ── Componente ───────────────────────────────────────────────────────────────
 export default function Devoluciones() {
-    const [devoluciones, setDevoluciones] = useState<DevolucionLista[]>([])
-    const [loading, setLoading] = useState(true)
-    const [numeroFactura, setNumeroFactura] = useState('')
-    const [buscando, setBuscando] = useState(false)
-    const [ventaEncontrada, setVentaEncontrada] = useState<VentaParaDevolucion | null>(null)
+    // Historial
+    const [devoluciones, setDevoluciones] = useState<Devolucion[]>([])
+    const [cargandoHistorial, setCargandoHistorial] = useState(true)
+    const [expandido, setExpandido] = useState<string | null>(null)
+
+    // Formulario
+    const [facturaInput, setFacturaInput] = useState('')
+    const [buscandoVenta, setBuscandoVenta] = useState(false)
+    const [ventaActual, setVentaActual] = useState<VentaParaDevolucion | null>(null)
     const [cantidades, setCantidades] = useState<Record<string, number>>({})
     const [motivo, setMotivo] = useState('')
     const [procesando, setProcesando] = useState(false)
-    const [exitosa, setExitosa] = useState<{ monto: number, factura: string } | null>(null)
 
-    const cargarDevoluciones = async () => {
-        try {
-            setLoading(true)
-            const res = await fetch(`${API.devoluciones}?tamano=10`)
-            const data = await res.json()
-            setDevoluciones(data.datos || [])
-        } catch { toast.error('Error al cargar devoluciones') }
-        finally { setLoading(false) }
-    }
-
-    useEffect(() => { cargarDevoluciones() }, [])
+    // Cargar historial
+    useEffect(() => {
+        const cargar = async () => {
+            try {
+                const res = await fetch(`${API.devoluciones}?pagina=1&tamano=50`)
+                const data = await res.json()
+                setDevoluciones(data.datos || [])
+            } catch { toast.error('Error al cargar historial') }
+            finally { setCargandoHistorial(false) }
+        }
+        cargar()
+    }, [])
 
     const buscarVenta = async () => {
-        if (!numeroFactura.trim()) { toast.error('Ingresá el número de factura'); return }
-        setBuscando(true)
+        if (!facturaInput.trim()) { toast.error('Ingresá un número de factura'); return }
+        setBuscandoVenta(true)
+        setVentaActual(null)
         try {
-            // Primero buscar la venta por número de factura
-            const res = await fetch(`${API.ventas}?busqueda=${encodeURIComponent(numeroFactura.trim())}&tamano=1`)
-            const data = await res.json()
-            if (!data.datos || data.datos.length === 0) {
-                toast.error('No se encontró ninguna venta con ese número')
+            // Buscar la venta por numero de factura
+            const resVentas = await fetch(`${API.ventas}?busqueda=${encodeURIComponent(facturaInput.trim())}`)
+            const dataVentas = await resVentas.json()
+            const venta = dataVentas.datos?.[0]
+            if (!venta) { toast.error('No se encontró la venta'); return }
+
+            const res = await fetch(`${API.devoluciones}/venta/${venta.id}`)
+            if (!res.ok) {
+                const err = await res.json()
+                toast.error(err.mensaje || 'No se puede procesar esta venta')
                 return
             }
-            const ventaId = data.datos[0].id
-            // Luego cargar los detalles para devolución
-            const res2 = await fetch(`${API.devoluciones}/venta/${ventaId}`)
-            if (!res2.ok) {
-                const err = await res2.json()
-                toast.error(err.mensaje || 'Error al cargar la venta')
-                return
-            }
-            const venta = await res2.json()
-            setVentaEncontrada(venta)
-            // Inicializar cantidades en 0
-            const inicial: Record<string, number> = {}
-            venta.detalles.forEach((d: DetalleVenta) => { inicial[d.productoId] = 0 })
-            setCantidades(inicial)
-            setExitosa(null)
+            const data: VentaParaDevolucion = await res.json()
+            setVentaActual(data)
+            const initCants: Record<string, number> = {}
+            data.detalles.forEach(d => { initCants[d.productoId] = 0 })
+            setCantidades(initCants)
         } catch { toast.error('Error al buscar la venta') }
-        finally { setBuscando(false) }
+        finally { setBuscandoVenta(false) }
     }
 
-    const totalDevolucion = ventaEncontrada
-        ? ventaEncontrada.detalles.reduce((acc, d) => {
-            const cant = cantidades[d.productoId] || 0
-            const precioFinal = d.precioUnitario * (1 - d.descuentoPct / 100)
-            return acc + precioFinal * cant
-        }, 0)
-        : 0
-
-    const itemsSeleccionados = Object.values(cantidades).filter(c => c > 0).length
-
-    const procesarDevolucion = async () => {
-        if (!ventaEncontrada) return
-        if (!motivo.trim()) { toast.error('El motivo es obligatorio'); return }
-        if (itemsSeleccionados === 0) { toast.error('Seleccioná al menos un producto para devolver'); return }
-
-        const items = ventaEncontrada.detalles
+    const registrarDevolucion = async () => {
+        if (!ventaActual) return
+        if (!motivo.trim()) { toast.error('Ingresá el motivo de la devolución'); return }
+        const items = ventaActual.detalles
             .filter(d => (cantidades[d.productoId] || 0) > 0)
             .map(d => ({ productoId: d.productoId, cantidad: cantidades[d.productoId] }))
+        if (items.length === 0) { toast.error('Seleccioná al menos un producto para devolver'); return }
 
         setProcesando(true)
         try {
             const res = await fetch(API.devoluciones, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ventaId: ventaEncontrada.id, motivo: motivo.trim(), items })
+                body: JSON.stringify({ ventaId: ventaActual.id, motivo: motivo.trim(), items })
             })
-            if (!res.ok) { const err = await res.json(); toast.error(err.mensaje || 'Error'); return }
             const data = await res.json()
-            setExitosa({ monto: data.montoDevuelto, factura: ventaEncontrada.numeroFactura })
-            setVentaEncontrada(null)
-            setNumeroFactura('')
-            setMotivo('')
-            setCantidades({})
-            await cargarDevoluciones()
-            toast.success('Devolución registrada correctamente')
-        } catch { toast.error('Error inesperado') }
+            if (!res.ok) { toast.error(data.mensaje || 'Error al registrar'); return }
+
+            toast.success(`Devolución registrada. Monto: ₲ ${fmt(data.montoDevuelto)}`)
+            setVentaActual(null); setFacturaInput(''); setMotivo('')
+
+            // Recargar historial
+            const resH = await fetch(`${API.devoluciones}?pagina=1&tamano=50`)
+            const dataH = await resH.json()
+            setDevoluciones(dataH.datos || [])
+        } catch { toast.error('Error de conexión') }
         finally { setProcesando(false) }
     }
 
-    const nueva = () => {
-        setExitosa(null)
-        setVentaEncontrada(null)
-        setNumeroFactura('')
-        setMotivo('')
-        setCantidades({})
-    }
+    const montoSeleccionado = ventaActual?.detalles.reduce((acc, d) => {
+        const cant = cantidades[d.productoId] || 0
+        return acc + d.precioUnitario * cant * (1 - d.descuentoPct / 100)
+    }, 0) || 0
 
     return (
         <Layout titulo="Devoluciones">
-            <div className="row">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', alignItems: 'start' }}>
 
-                {/* Panel izquierdo — Nueva devolución */}
-                <div className="col-lg-7">
-
-                    {/* Éxito */}
-                    {exitosa && (
-                        <div className="card mb-4" style={{ border: '2px solid #2e7d32' }}>
-                            <div className="card-body text-center py-4">
-                                <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: '#e8f5e9', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-                                    <i className="fas fa-check fa-2x" style={{ color: '#2e7d32' }}></i>
-                                </div>
-                                <h5 style={{ fontWeight: 700, marginBottom: '4px' }}>¡Devolución registrada!</h5>
-                                <p style={{ color: 'var(--text-muted)', marginBottom: '4px' }}>Factura {exitosa.factura}</p>
-                                <h3 style={{ fontWeight: 800, color: '#2e7d32', marginBottom: '20px' }}>₲ {fmt(exitosa.monto)} devueltos</h3>
-                                <button onClick={nueva} className="btn btn-primary">
-                                    <i className="fas fa-undo mr-2"></i>Nueva devolución
+                {/* ── Panel izquierdo: formulario ── */}
+                <div>
+                    <div className="card mb-3">
+                        <div className="card-header">
+                            <i className="fas fa-search mr-2" style={{ color: 'var(--primary)' }}></i>
+                            Buscar venta por N° de factura
+                        </div>
+                        <div className="card-body">
+                            <div className="input-group">
+                                <input type="text" className="form-control"
+                                    placeholder="Ej: F-000001 o 00000001"
+                                    value={facturaInput}
+                                    onChange={e => setFacturaInput(e.target.value)}
+                                    onKeyDown={e => e.key === 'Enter' && buscarVenta()}
+                                />
+                                <button className="btn btn-primary" onClick={buscarVenta} disabled={buscandoVenta}>
+                                    {buscandoVenta
+                                        ? <i className="fas fa-spinner fa-spin"></i>
+                                        : <i className="fas fa-search"></i>}
                                 </button>
                             </div>
                         </div>
-                    )}
+                    </div>
 
-                    {/* Buscador de factura */}
-                    {!exitosa && (
-                        <div className="card mb-4">
-                            <div className="card-header">
-                                <i className="fas fa-search mr-2" style={{ color: 'var(--primary)' }}></i>Buscar venta
-                            </div>
-                            <div className="card-body">
-                                <div className="input-group">
-                                    <input type="text" className="form-control"
-                                        placeholder="Número de factura (Ej: F-000001)..."
-                                        value={numeroFactura}
-                                        onChange={e => setNumeroFactura(e.target.value)}
-                                        onKeyDown={e => e.key === 'Enter' && buscarVenta()} />
-                                    <button onClick={buscarVenta} disabled={buscando} className="btn btn-primary">
-                                        {buscando ? <i className="fas fa-spinner fa-spin"></i> : <><i className="fas fa-search mr-1"></i>Buscar</>}
-                                    </button>
-                                </div>
-                                <small style={{ color: 'var(--text-muted)', marginTop: '6px', display: 'block' }}>
-                                    Ingresá el número de factura de la venta que querés devolver
-                                </small>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Detalle de la venta encontrada */}
-                    {ventaEncontrada && !exitosa && (
-                        <div className="card">
-                            <div className="card-header d-flex justify-content-between align-items-center">
-                                <span>
+                    {ventaActual && (
+                        <>
+                            <div className="card mb-3">
+                                <div className="card-header">
                                     <i className="fas fa-receipt mr-2" style={{ color: 'var(--primary)' }}></i>
-                                    Venta <strong>{ventaEncontrada.numeroFactura}</strong>
-                                </span>
-                                <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-                                    {new Date(ventaEncontrada.fecha).toLocaleDateString('es-PY')}
-                                    {ventaEncontrada.clienteNombre && ` · ${ventaEncontrada.clienteNombre}`}
+                                    Venta {ventaActual.numeroFactura}
+                                    {ventaActual.clienteNombre && (
+                                        <span className="ml-2" style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: '13px' }}>
+                                            — {ventaActual.clienteNombre}
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="card-body p-0">
+                                    <table className="table mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th style={{ ...thStyle, fontSize: '12px' }}>Producto</th>
+                                                <th style={{ ...thStyle, fontSize: '12px', textAlign: 'center' }}>Disponible</th>
+                                                <th style={{ ...thStyle, fontSize: '12px', textAlign: 'center' }}>Devolver</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {ventaActual.detalles.map(d => (
+                                                <tr key={d.productoId}>
+                                                    <td style={{ padding: '10px 16px' }}>
+                                                        <div style={{ fontWeight: 500, fontSize: '14px' }}>{d.nombreProducto}</div>
+                                                        <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                                                            ₲ {fmt(d.precioUnitario)} c/u
+                                                            {d.cantidadDevuelta > 0 && ` · ${d.cantidadDevuelta} ya devuelto/s`}
+                                                        </div>
+                                                    </td>
+                                                    <td style={{ padding: '10px 16px', textAlign: 'center' }}>
+                                                        <span style={{ background: 'var(--primary-light)', color: 'var(--primary-dark)', padding: '3px 10px', borderRadius: '20px', fontWeight: 700, fontSize: '13px' }}>
+                                                            {d.cantidadDisponible}
+                                                        </span>
+                                                    </td>
+                                                    <td style={{ padding: '10px 16px', textAlign: 'center' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                                                            <button onClick={() => setCantidades(p => ({ ...p, [d.productoId]: Math.max(0, (p[d.productoId] || 0) - 1) }))}
+                                                                style={{ width: '26px', height: '26px', border: '1px solid var(--border)', borderRadius: '4px', background: 'white', cursor: 'pointer' }}>−</button>
+                                                            <span style={{ width: '28px', textAlign: 'center', fontWeight: 700 }}>{cantidades[d.productoId] || 0}</span>
+                                                            <button onClick={() => setCantidades(p => ({ ...p, [d.productoId]: Math.min(d.cantidadDisponible, (p[d.productoId] || 0) + 1) }))}
+                                                                style={{ width: '26px', height: '26px', border: '1px solid var(--border)', borderRadius: '4px', background: 'white', cursor: 'pointer' }}>+</button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
                                 </div>
                             </div>
-                            <div className="card-body">
 
-                                {/* Productos */}
-                                <div style={{ marginBottom: '16px' }}>
-                                    <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-muted)', marginBottom: '8px' }}>
-                                        SELECCIONÁ LOS PRODUCTOS A DEVOLVER
+                            <div className="card">
+                                <div className="card-body">
+                                    <div style={{ marginBottom: '12px' }}>
+                                        <label style={{ fontWeight: 600, fontSize: '13px', marginBottom: '4px', display: 'block' }}>Motivo de devolución</label>
+                                        <textarea className="form-control" rows={3}
+                                            placeholder="Describa el motivo de la devolución..."
+                                            value={motivo} onChange={e => setMotivo(e.target.value)} />
                                     </div>
-                                    {ventaEncontrada.detalles.map(d => {
-                                        const cant = cantidades[d.productoId] || 0
-                                        const montoItem = d.precioUnitario * (1 - d.descuentoPct / 100) * cant
-                                        return (
-                                            <div key={d.productoId} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', marginBottom: '8px', border: `2px solid ${cant > 0 ? 'var(--primary)' : 'var(--border)'}`, borderRadius: '10px', background: cant > 0 ? 'var(--primary-light)' : 'white', transition: 'all 0.2s' }}>
-                                                <div style={{ flex: 1 }}>
-                                                    <div style={{ fontWeight: 600, fontSize: '14px' }}>{d.nombreProducto}</div>
-                                                    <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                                                        ₲ {fmt(d.precioUnitario * (1 - d.descuentoPct / 100))} c/u
-                                                        {d.descuentoPct > 0 && <span style={{ color: 'var(--secondary)', marginLeft: '4px' }}>(-{d.descuentoPct}%)</span>}
-                                                    </div>
-                                                    <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                                                        Comprado: {d.cantidad} · Disponible para devolver: <strong style={{ color: 'var(--primary-dark)' }}>{d.cantidadDisponible}</strong>
-                                                    </div>
-                                                </div>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                                                    <button onClick={() => setCantidades(prev => ({ ...prev, [d.productoId]: Math.max(0, (prev[d.productoId] || 0) - 1) }))}
-                                                        disabled={cant <= 0}
-                                                        style={{ width: '28px', height: '28px', border: '1px solid var(--border)', borderRadius: '6px', background: 'white', cursor: 'pointer', fontSize: '16px', opacity: cant <= 0 ? 0.4 : 1 }}>−</button>
-                                                    <span style={{ width: '32px', textAlign: 'center', fontWeight: 700, fontSize: '16px' }}>{cant}</span>
-                                                    <button onClick={() => setCantidades(prev => ({ ...prev, [d.productoId]: Math.min(d.cantidadDisponible, (prev[d.productoId] || 0) + 1) }))}
-                                                        disabled={cant >= d.cantidadDisponible}
-                                                        style={{ width: '28px', height: '28px', border: '1px solid var(--border)', borderRadius: '6px', background: 'white', cursor: 'pointer', fontSize: '16px', opacity: cant >= d.cantidadDisponible ? 0.4 : 1 }}>+</button>
-                                                </div>
-                                                {cant > 0 && (
-                                                    <div style={{ textAlign: 'right', flexShrink: 0, minWidth: '100px' }}>
-                                                        <div style={{ fontWeight: 700, color: '#2e7d32' }}>₲ {fmt(montoItem)}</div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )
-                                    })}
-                                </div>
-
-                                {/* Motivo */}
-                                <div className="mb-3">
-                                    <label style={{ fontWeight: 600, fontSize: '13px', marginBottom: '6px', display: 'block' }}>
-                                        Motivo de devolución <span style={{ color: 'var(--secondary)' }}>*</span>
-                                    </label>
-                                    <input type="text" className="form-control"
-                                        placeholder="Ej: Producto defectuoso, error de pedido, cambio de talle..."
-                                        value={motivo} onChange={e => setMotivo(e.target.value)} />
-                                </div>
-
-                                {/* Total y confirmar */}
-                                {itemsSeleccionados > 0 && (
-                                    <div style={{ background: '#e8f5e9', borderRadius: '10px', padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <div>
-                                            <div style={{ fontSize: '13px', color: '#2e7d32' }}>{itemsSeleccionados} producto{itemsSeleccionados > 1 ? 's' : ''} seleccionado{itemsSeleccionados > 1 ? 's' : ''}</div>
-                                            <div style={{ fontWeight: 800, fontSize: '20px', color: '#2e7d32' }}>₲ {fmt(totalDevolucion)}</div>
+                                            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Monto a devolver</div>
+                                            <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--secondary)' }}>₲ {fmt(montoSeleccionado)}</div>
                                         </div>
-                                        <button onClick={procesarDevolucion} disabled={procesando} className="btn"
-                                            style={{ background: '#2e7d32', color: 'white', border: 'none', padding: '12px 24px', fontWeight: 700, borderRadius: '8px', fontSize: '15px' }}>
+                                        <button className="btn btn-primary" onClick={registrarDevolucion} disabled={procesando || montoSeleccionado === 0}>
                                             {procesando
                                                 ? <><i className="fas fa-spinner fa-spin mr-2"></i>Procesando...</>
-                                                : <><i className="fas fa-check-circle mr-2"></i>Confirmar devolución</>
-                                            }
+                                                : <><i className="fas fa-undo mr-2"></i>Registrar devolución</>}
                                         </button>
                                     </div>
-                                )}
+                                </div>
                             </div>
-                        </div>
+                        </>
                     )}
                 </div>
 
-                {/* Panel derecho — Historial */}
-                <div className="col-lg-5">
-                    <div className="card">
-                        <div className="card-header">
-                            <i className="fas fa-history mr-2" style={{ color: 'var(--primary)' }}></i>Últimas devoluciones
-                        </div>
-                        <div className="card-body p-0">
-                            {loading ? (
-                                <div className="text-center py-4">
-                                    <i className="fas fa-spinner fa-spin" style={{ color: 'var(--primary)' }}></i>
-                                </div>
-                            ) : devoluciones.length === 0 ? (
-                                <div className="text-center py-4" style={{ color: 'var(--text-muted)' }}>
-                                    No hay devoluciones registradas
-                                </div>
-                            ) : devoluciones.map(d => (
-                                <div key={d.id} style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                        <div>
-                                            <div style={{ fontWeight: 700, fontSize: '14px', fontFamily: 'monospace' }}>{d.numeroFactura}</div>
-                                            {d.clienteNombre && <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{d.clienteNombre}</div>}
-                                            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{d.cantidadItems} producto{d.cantidadItems > 1 ? 's' : ''}</div>
-                                            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px', fontStyle: 'italic' }}>"{d.motivo}"</div>
-                                        </div>
-                                        <div style={{ textAlign: 'right' }}>
-                                            <div style={{ fontWeight: 700, color: '#2e7d32', fontSize: '15px' }}>₲ {fmt(d.montoDevuelto)}</div>
-                                            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{new Date(d.fecha).toLocaleDateString('es-PY')}</div>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
+                {/* ── Panel derecho: historial ── */}
+                <div className="card">
+                    <div className="card-header">
+                        <i className="fas fa-history mr-2" style={{ color: 'var(--primary)' }}></i>
+                        Historial de devoluciones
                     </div>
+                    {cargandoHistorial ? (
+                        <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                            <i className="fas fa-spinner fa-spin fa-2x"></i>
+                        </div>
+                    ) : devoluciones.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                            <i className="fas fa-undo fa-2x" style={{ opacity: 0.2, display: 'block', marginBottom: '8px' }}></i>
+                            Sin devoluciones registradas
+                        </div>
+                    ) : (
+                        <table className="table mb-0">
+                            <thead>
+                                <tr>
+                                    <th style={{ ...thStyle, fontSize: '12px' }}>Fecha</th>
+                                    <th style={{ ...thStyle, fontSize: '12px' }}>Factura</th>
+                                    <th style={{ ...thStyle, fontSize: '12px' }}>Productos devueltos</th>
+                                    <th style={{ ...thStyle, fontSize: '12px', textAlign: 'right' }}>Monto</th>
+                                    <th style={{ ...thStyle, fontSize: '12px' }}></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {devoluciones.map(d => (
+                                    <>
+                                        <tr key={d.id} style={{ cursor: 'pointer' }}
+                                            onClick={() => setExpandido(expandido === d.id ? null : d.id)}
+                                            onMouseEnter={e => e.currentTarget.style.background = 'var(--primary-light)'}
+                                            onMouseLeave={e => e.currentTarget.style.background = 'white'}>
+                                            <td style={{ padding: '10px 16px', fontSize: '12px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{fmtFecha(d.fecha)}</td>
+                                            <td style={{ padding: '10px 16px', fontWeight: 700, fontSize: '13px' }}>{d.numeroFactura}</td>
+                                            <td style={{ padding: '10px 16px' }}>
+                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px' }}>
+                                                    {d.detalles?.map((det, i) => (
+                                                        <span key={i} style={{ background: 'var(--primary-light)', color: 'var(--primary-dark)', padding: '2px 7px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>
+                                                            {det.cantidad}x {det.nombreProducto}
+                                                        </span>
+                                                    )) || <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>{d.cantidadItems} item{d.cantidadItems !== 1 ? 's' : ''}</span>}
+                                                </div>
+                                            </td>
+                                            <td style={{ padding: '10px 16px', fontWeight: 700, color: 'var(--secondary)', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                                                - ₲ {fmt(d.montoDevuelto)}
+                                            </td>
+                                            <td style={{ padding: '10px', textAlign: 'center' }}>
+                                                <i className={`fas fa-chevron-${expandido === d.id ? 'up' : 'down'}`} style={{ color: 'var(--text-muted)', fontSize: '11px' }}></i>
+                                            </td>
+                                        </tr>
+                                        {expandido === d.id && (
+                                            <tr key={`${d.id}-exp`}>
+                                                <td colSpan={5} style={{ padding: '0 12px 12px', background: '#fafafa' }}>
+                                                    <div style={{ background: 'white', borderRadius: '6px', border: '1px solid var(--border)', padding: '12px' }}>
+                                                        {d.motivo && (
+                                                            <div style={{ marginBottom: '10px', padding: '8px 12px', background: '#fffbeb', borderRadius: '6px', fontSize: '12px', color: '#744210' }}>
+                                                                <strong>Motivo:</strong> {d.motivo}
+                                                            </div>
+                                                        )}
+                                                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                                            <thead>
+                                                                <tr style={{ background: 'var(--dark)' }}>
+                                                                    <th style={{ padding: '7px 10px', fontSize: '11px', color: 'white', textAlign: 'left' }}>Producto</th>
+                                                                    <th style={{ padding: '7px 10px', fontSize: '11px', color: 'white', textAlign: 'center' }}>Cant.</th>
+                                                                    <th style={{ padding: '7px 10px', fontSize: '11px', color: 'white', textAlign: 'right' }}>Monto</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {d.detalles?.map((det, i) => (
+                                                                    <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                                                                        <td style={{ padding: '8px 10px', fontSize: '13px' }}>{det.nombreProducto}</td>
+                                                                        <td style={{ padding: '8px 10px', fontSize: '13px', textAlign: 'center' }}>{det.cantidad}</td>
+                                                                        <td style={{ padding: '8px 10px', fontSize: '13px', textAlign: 'right', fontWeight: 700, color: 'var(--secondary)' }}>- ₲ {fmt(det.monto)}</td>
+                                                                    </tr>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
                 </div>
             </div>
         </Layout>

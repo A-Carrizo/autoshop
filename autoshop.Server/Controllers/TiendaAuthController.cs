@@ -1,12 +1,12 @@
-ï»¿using autoshop.Server.Data;
+using autoshop.Server.Data;
 using autoshop.Server.Models;
-using MailKit.Net.Smtp;
-using MailKit.Security;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using MimeKit;
 using System.Security.Cryptography;
 using System.Text;
+using MailKit.Net.Smtp;
+using MailKit.Security;
+using MimeKit;
 
 namespace autoshop.Server.Controllers
 {
@@ -14,244 +14,333 @@ namespace autoshop.Server.Controllers
     [Route("api/tienda/auth")]
     public class TiendaAuthController : ControllerBase
     {
-        private readonly AppDbContext _context;
+        private readonly AppDbContext _db;
         private readonly IConfiguration _config;
 
-        public TiendaAuthController(AppDbContext context, IConfiguration config)
+        public TiendaAuthController(AppDbContext db, IConfiguration config)
         {
-            _context = context;
+            _db = db;
             _config = config;
         }
 
-        private static string HashPassword(string password)
+        private static string Hashear(string texto)
         {
-            using var sha = SHA256.Create();
-            var bytes = sha.ComputeHash(Encoding.UTF8.GetBytes(password + "magcar_salt_2026"));
+            var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(texto + "magcar_salt_2026"));
             return Convert.ToHexString(bytes).ToLower();
         }
 
         private static string GenerarToken() =>
-            Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLower();
+            Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))
+                .Replace("+", "-").Replace("/", "_").Replace("=", "");
 
-        [HttpPost("registro")]
-        public async Task<IActionResult> Registro([FromBody] RegistroClienteDto dto)
+        private Cliente? ObtenerClienteDesdeToken()
         {
-            if (string.IsNullOrWhiteSpace(dto.Nombre) || string.IsNullOrWhiteSpace(dto.Email) || string.IsNullOrWhiteSpace(dto.Password))
-                return BadRequest(new { mensaje = "Nombre, email y contrasena son requeridos." });
-
-            if (dto.Password.Length < 6)
-                return BadRequest(new { mensaje = "La contrasena debe tener al menos 6 caracteres." });
-
-            var emailNormalizado = dto.Email.Trim().ToLower();
-            var existe = await _context.ClientesTienda.AnyAsync(c => c.Email == emailNormalizado);
-            if (existe)
-                return BadRequest(new { mensaje = "Ya existe una cuenta registrada con ese email." });
-
-            var cliente = new ClienteTienda
-            {
-                Id = Guid.NewGuid(),
-                Nombre = dto.Nombre.Trim(),
-                Email = emailNormalizado,
-                PasswordHash = HashPassword(dto.Password),
-                Telefono = dto.Telefono,
-                Direccion = dto.Direccion,
-                Activo = true,
-                FechaCreacion = DateTime.UtcNow
-            };
-
-            _context.ClientesTienda.Add(cliente);
-            await _context.SaveChangesAsync();
-
-            // Inicia sesion automaticamente despues de registrarse
-            var token = GenerarToken();
-            cliente.Token = token;
-            cliente.TokenExpira = DateTime.UtcNow.AddDays(30);
-            await _context.SaveChangesAsync();
-
-            return Ok(new
-            {
-                token,
-                nombre = cliente.Nombre,
-                email = cliente.Email,
-                mensaje = "Cuenta creada correctamente."
-            });
+            var auth = Request.Headers["Authorization"].ToString();
+            if (!auth.StartsWith("Bearer ")) return null;
+            var token = auth["Bearer ".Length..].Trim();
+            return _db.Clientes.FirstOrDefault(c =>
+                c.Token == token &&
+                c.TokenExpira > DateTime.UtcNow &&
+                c.TieneAccesoWeb);
         }
 
+        // POST /api/tienda/auth/registro
+        [HttpPost("registro")]
+        public async Task<IActionResult> Registro([FromBody] RegistroTiendaDto dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Nombre) ||
+                string.IsNullOrWhiteSpace(dto.Email) ||
+                string.IsNullOrWhiteSpace(dto.Password))
+                return BadRequest(new { mensaje = "Nombre, email y contraseña son requeridos" });
+
+            if (dto.Password.Length < 6)
+                return BadRequest(new { mensaje = "La contraseña debe tener al menos 6 caracteres" });
+
+            var emailLower = dto.Email.Trim().ToLower();
+
+            // Buscar si ya existe un cliente con ese email
+            var clienteExistente = await _db.Clientes
+                .FirstOrDefaultAsync(c => c.Email != null && c.Email.ToLower() == emailLower);
+
+            var token = GenerarToken();
+
+            if (clienteExistente != null)
+            {
+                // Si ya tiene acceso web, no puede registrarse de nuevo
+                if (clienteExistente.TieneAccesoWeb)
+                    return BadRequest(new { mensaje = "Ya existe una cuenta con ese email. Iniciá sesión." });
+
+                // Existe en el ERP sin acceso web
+                // Opcion A: activar ahora con contraseña elegida en el formulario
+                if (dto.ActivarAhora && !string.IsNullOrEmpty(dto.Password))
+                {
+                    if (dto.Password.Length < 6)
+                        return BadRequest(new { mensaje = "La contraseña debe tener al menos 6 caracteres" });
+
+                    var tokenActivacion = GenerarToken();
+                    clienteExistente.TieneAccesoWeb = true;
+                    clienteExistente.PasswordHash = Hashear(dto.Password);
+                    clienteExistente.Token = tokenActivacion;
+                    clienteExistente.TokenExpira = DateTime.UtcNow.AddDays(30);
+                    await _db.SaveChangesAsync();
+
+                    return Ok(new { token = tokenActivacion, nombre = clienteExistente.Nombre, email = clienteExistente.Email });
+                }
+
+                // Opcion B: enviar email para crear contraseña
+                if (string.IsNullOrEmpty(clienteExistente.Email))
+                    return BadRequest(new { mensaje = "No se puede activar la cuenta. Contactá con el vendedor." });
+
+                var tokenReset = GenerarToken();
+                clienteExistente.TokenReset = tokenReset;
+                clienteExistente.TokenResetExpira = DateTime.UtcNow.AddHours(24);
+                await _db.SaveChangesAsync();
+
+                try
+                {
+                    var smtpConfig = _config.GetSection("Smtp");
+                    using var smtp = new MailKit.Net.Smtp.SmtpClient();
+                    await smtp.ConnectAsync(smtpConfig["Host"], int.Parse(smtpConfig["Port"] ?? "587"), SecureSocketOptions.StartTls);
+                    await smtp.AuthenticateAsync(smtpConfig["User"], smtpConfig["Pass"]);
+
+                    var tiendaUrl = _config["TiendaUrl"];
+                    var mensaje = new MimeMessage();
+                    mensaje.From.Add(InternetAddress.Parse(smtpConfig["User"]!));
+                    mensaje.To.Add(InternetAddress.Parse(clienteExistente.Email));
+                    mensaje.Subject = "Activá tu cuenta en MagCar Auto Shop";
+                    mensaje.Body = new TextPart("html")
+                    {
+                        Text = $@"
+                            <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'>
+                                <div style='background: #CC0000; padding: 24px; text-align: center;'>
+                                    <h1 style='color: white; margin: 0;'>MagCar Auto Shop</h1>
+                                </div>
+                                <div style='padding: 32px; background: #f9f9f9;'>
+                                    <h2>¡Hola, {clienteExistente.Nombre}!</h2>
+                                    <p>Ya tenés una cuenta en nuestra tienda. Solo necesitás crear tu contraseña para acceder:</p>
+                                    <a href='{tiendaUrl}/reset-password?token={tokenReset}'
+                                       style='display: inline-block; background: #CC0000; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 16px 0;'>
+                                       Crear mi contraseña
+                                    </a>
+                                    <p style='color: #718096; font-size: 13px;'>Este enlace expira en 24 horas.</p>
+                                </div>
+                            </div>"
+                    };
+
+                    await smtp.SendAsync(mensaje);
+                    await smtp.DisconnectAsync(true);
+                }
+                catch { /* Email falla silenciosamente */ }
+
+                return Ok(new { mensaje = "Te enviamos un correo para que establezcas tu contraseña.", activacion = true });
+            }
+
+            // Cliente nuevo — crear registro completo
+            var cliente = new Cliente
+            {
+                Nombre = dto.Nombre.Trim(),
+                Email = emailLower,
+                Telefono = dto.Telefono?.Trim(),
+                TieneAccesoWeb = true,
+                PasswordHash = Hashear(dto.Password),
+                Token = token,
+                TokenExpira = DateTime.UtcNow.AddDays(30),
+            };
+
+            _db.Clientes.Add(cliente);
+            await _db.SaveChangesAsync();
+
+            return Ok(new { token, nombre = cliente.Nombre, email = cliente.Email });
+        }
+
+        // POST /api/tienda/auth/login
         [HttpPost("login")]
-        public async Task<IActionResult> Login([FromBody] LoginClienteDto dto)
+        public async Task<IActionResult> Login([FromBody] LoginTiendaDto dto)
         {
             if (string.IsNullOrWhiteSpace(dto.Email) || string.IsNullOrWhiteSpace(dto.Password))
-                return BadRequest(new { mensaje = "Email y contrasena son requeridos." });
+                return BadRequest(new { mensaje = "Email y contraseña son requeridos" });
 
-            var hash = HashPassword(dto.Password);
-            var emailNormalizado = dto.Email.Trim().ToLower();
-            var cliente = await _context.ClientesTienda
-                .FirstOrDefaultAsync(c => c.Email == emailNormalizado && c.PasswordHash == hash && c.Activo);
+            var emailLower = dto.Email.Trim().ToLower();
+            var cliente = await _db.Clientes.FirstOrDefaultAsync(c =>
+                c.Email != null && c.Email.ToLower() == emailLower &&
+                c.TieneAccesoWeb && c.Activo);
 
-            if (cliente == null) return Unauthorized(new { mensaje = "Email o contrasena incorrectos." });
+            if (cliente == null || cliente.PasswordHash != Hashear(dto.Password))
+                return Unauthorized(new { mensaje = "Email o contraseña incorrectos" });
 
             var token = GenerarToken();
             cliente.Token = token;
             cliente.TokenExpira = DateTime.UtcNow.AddDays(30);
-            await _context.SaveChangesAsync();
+            await _db.SaveChangesAsync();
+
+            return Ok(new { token, nombre = cliente.Nombre, email = cliente.Email });
+        }
+
+        // POST /api/tienda/auth/logout
+        [HttpPost("logout")]
+        public async Task<IActionResult> Logout()
+        {
+            var cliente = ObtenerClienteDesdeToken();
+            if (cliente != null)
+            {
+                cliente.Token = null;
+                cliente.TokenExpira = null;
+                await _db.SaveChangesAsync();
+            }
+            return Ok(new { mensaje = "Sesión cerrada" });
+        }
+
+        // GET /api/tienda/auth/verificar
+        [HttpGet("verificar")]
+        public IActionResult Verificar()
+        {
+            var cliente = ObtenerClienteDesdeToken();
+            if (cliente == null) return Unauthorized(new { mensaje = "Token inválido o expirado" });
 
             return Ok(new
             {
-                token,
+                id = cliente.Id,
                 nombre = cliente.Nombre,
                 email = cliente.Email,
                 telefono = cliente.Telefono,
                 direccion = cliente.Direccion,
-                expira = cliente.TokenExpira
             });
         }
 
-        [HttpPost("logout")]
-        public async Task<IActionResult> Logout([FromHeader(Name = "Authorization")] string? auth)
-        {
-            var token = auth?.Replace("Bearer ", "");
-            if (!string.IsNullOrEmpty(token))
-            {
-                var cliente = await _context.ClientesTienda.FirstOrDefaultAsync(c => c.Token == token);
-                if (cliente != null) { cliente.Token = null; cliente.TokenExpira = null; await _context.SaveChangesAsync(); }
-            }
-            return Ok(new { mensaje = "Sesion cerrada." });
-        }
-
-        [HttpGet("verificar")]
-        public async Task<IActionResult> Verificar([FromHeader(Name = "Authorization")] string? auth)
-        {
-            var token = auth?.Replace("Bearer ", "");
-            if (string.IsNullOrEmpty(token)) return Unauthorized();
-            var cliente = await _context.ClientesTienda.FirstOrDefaultAsync(c =>
-                c.Token == token && c.TokenExpira > DateTime.UtcNow && c.Activo);
-            if (cliente == null) return Unauthorized();
-            return Ok(new { nombre = cliente.Nombre, email = cliente.Email, telefono = cliente.Telefono, direccion = cliente.Direccion });
-        }
-
+        // PUT /api/tienda/auth/perfil
         [HttpPut("perfil")]
-        public async Task<IActionResult> ActualizarPerfil(
-            [FromHeader(Name = "Authorization")] string? auth,
-            [FromBody] ActualizarPerfilDto dto)
+        public async Task<IActionResult> ActualizarPerfil([FromBody] ActualizarPerfilDto dto)
         {
-            var token = auth?.Replace("Bearer ", "");
-            var cliente = await _context.ClientesTienda.FirstOrDefaultAsync(c =>
-                c.Token == token && c.TokenExpira > DateTime.UtcNow && c.Activo);
+            var cliente = ObtenerClienteDesdeToken();
+            if (cliente == null) return Unauthorized(new { mensaje = "Token inválido" });
 
-            if (cliente == null) return Unauthorized(new { mensaje = "Sesion invalida." });
+            if (string.IsNullOrWhiteSpace(dto.Nombre))
+                return BadRequest(new { mensaje = "El nombre es requerido" });
 
             cliente.Nombre = dto.Nombre.Trim();
-            cliente.Telefono = dto.Telefono;
-            cliente.Direccion = dto.Direccion;
-            await _context.SaveChangesAsync();
+            cliente.Telefono = dto.Telefono?.Trim();
+            cliente.Direccion = dto.Direccion?.Trim();
+            await _db.SaveChangesAsync();
 
-            return Ok(new { mensaje = "Perfil actualizado correctamente." });
+            return Ok(new { mensaje = "Perfil actualizado" });
         }
 
+        // POST /api/tienda/auth/recuperar
         [HttpPost("recuperar")]
-        public async Task<IActionResult> RecuperarPassword([FromBody] RecuperarClienteDto dto)
+        public async Task<IActionResult> RecuperarPassword([FromBody] RecuperarTiendaDto dto)
         {
-            var emailNormalizado = dto.Email.Trim().ToLower();
-            var cliente = await _context.ClientesTienda.FirstOrDefaultAsync(c => c.Email == emailNormalizado && c.Activo);
-            if (cliente == null) return Ok(new { mensaje = "Si el email existe, recibiras un correo con instrucciones." });
+            if (string.IsNullOrWhiteSpace(dto.Email))
+                return BadRequest(new { mensaje = "Email requerido" });
+
+            var emailLower = dto.Email.Trim().ToLower();
+            var cliente = await _db.Clientes.FirstOrDefaultAsync(c =>
+                c.Email != null && c.Email.ToLower() == emailLower && c.TieneAccesoWeb);
+
+            if (cliente == null)
+                return Ok(new { mensaje = "Si el email existe, recibirás las instrucciones" });
 
             var tokenReset = GenerarToken();
             cliente.TokenReset = tokenReset;
-            cliente.TokenResetExpira = DateTime.UtcNow.AddHours(1);
-            await _context.SaveChangesAsync();
-
-            var smtpHost = _config["Smtp:Host"];
-            var smtpPort = int.Parse(_config["Smtp:Port"] ?? "587");
-            var smtpUser = _config["Smtp:User"] ?? "";
-            var smtpPass = _config["Smtp:Pass"] ?? "";
-            var tiendaUrl = _config["TiendaUrl"] ?? "https://localhost:5180";
+            cliente.TokenResetExpira = DateTime.UtcNow.AddHours(2);
+            await _db.SaveChangesAsync();
 
             try
             {
-                var link = $"{tiendaUrl}/reset-password?token={tokenReset}";
-                var body = EmailBodyRecuperacion(cliente.Nombre, link);
+                var smtpConfig = _config.GetSection("Smtp");
+                using var smtp = new SmtpClient();
+                await smtp.ConnectAsync(smtpConfig["Host"], int.Parse(smtpConfig["Port"] ?? "587"), SecureSocketOptions.StartTls);
+                await smtp.AuthenticateAsync(smtpConfig["User"], smtpConfig["Pass"]);
 
+                var tiendaUrl = _config["TiendaUrl"];
                 var mensaje = new MimeMessage();
-                mensaje.From.Add(new MailboxAddress("MagCar Auto Shop", smtpUser));
-                mensaje.To.Add(new MailboxAddress(cliente.Nombre, cliente.Email));
-                mensaje.Subject = "Recuperacion de contrasena - MagCar Auto Shop";
-                mensaje.Body = new TextPart("html") { Text = body };
+                mensaje.From.Add(InternetAddress.Parse(smtpConfig["User"]!));
+                mensaje.To.Add(InternetAddress.Parse(cliente.Email!));
+                mensaje.Subject = "Recuperar contraseña - MagCar Auto Shop";
+                mensaje.Body = new TextPart("html")
+                {
+                    Text = $@"
+                        <div style='font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;'>
+                            <div style='background: #CC0000; padding: 24px; text-align: center;'>
+                                <h1 style='color: white; margin: 0;'>MagCar Auto Shop</h1>
+                            </div>
+                            <div style='padding: 32px; background: #f9f9f9;'>
+                                <h2>Recuperar contraseña</h2>
+                                <p>Hola <strong>{cliente.Nombre}</strong>,</p>
+                                <p>Hacé click en el siguiente enlace para restablecer tu contraseña:</p>
+                                <a href='{tiendaUrl}/reset-password?token={tokenReset}'
+                                   style='display: inline-block; background: #CC0000; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 16px 0;'>
+                                   Restablecer contraseña
+                                </a>
+                                <p style='color: #718096; font-size: 13px;'>Este enlace expira en 2 horas.</p>
+                            </div>
+                        </div>"
+                };
 
-                using var client = new SmtpClient();
-                await client.ConnectAsync(smtpHost, smtpPort, SecureSocketOptions.StartTls);
-                await client.AuthenticateAsync(smtpUser, smtpPass);
-                await client.SendAsync(mensaje);
-                await client.DisconnectAsync(true);
+                await smtp.SendAsync(mensaje);
+                await smtp.DisconnectAsync(true);
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"ERROR EMAIL TIENDA: {ex.Message}");
-            }
+            catch { /* Email falla silenciosamente */ }
 
-            return Ok(new { mensaje = "Si el email existe, recibiras un correo con instrucciones." });
+            return Ok(new { mensaje = "Si el email existe, recibirás las instrucciones" });
         }
 
+        // POST /api/tienda/auth/reset-password
         [HttpPost("reset-password")]
-        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordClienteDto dto)
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordTiendaDto dto)
         {
-            var cliente = await _context.ClientesTienda.FirstOrDefaultAsync(c =>
-                c.TokenReset == dto.Token && c.TokenResetExpira > DateTime.UtcNow && c.Activo);
+            if (string.IsNullOrWhiteSpace(dto.Token) || string.IsNullOrWhiteSpace(dto.NuevaPassword))
+                return BadRequest(new { mensaje = "Token y nueva contraseña son requeridos" });
 
-            if (cliente == null) return BadRequest(new { mensaje = "El enlace es invalido o ha expirado." });
-            if (dto.NuevaPassword.Length < 6) return BadRequest(new { mensaje = "Minimo 6 caracteres." });
+            if (dto.NuevaPassword.Length < 6)
+                return BadRequest(new { mensaje = "La contraseña debe tener al menos 6 caracteres" });
 
-            cliente.PasswordHash = HashPassword(dto.NuevaPassword);
-            cliente.TokenReset = null; cliente.TokenResetExpira = null;
-            cliente.Token = null; cliente.TokenExpira = null;
-            await _context.SaveChangesAsync();
+            var cliente = await _db.Clientes.FirstOrDefaultAsync(c =>
+                c.TokenReset == dto.Token &&
+                c.TokenResetExpira > DateTime.UtcNow &&
+                c.TieneAccesoWeb);
 
-            return Ok(new { mensaje = "Contrasena actualizada correctamente." });
+            if (cliente == null)
+                return BadRequest(new { mensaje = "Token inválido o expirado" });
+
+            cliente.PasswordHash = Hashear(dto.NuevaPassword);
+            cliente.TokenReset = null;
+            cliente.TokenResetExpira = null;
+            cliente.Token = null;
+            cliente.TokenExpira = null;
+            await _db.SaveChangesAsync();
+
+            return Ok(new { mensaje = "Contraseña restablecida correctamente" });
         }
-
-        private string EmailBodyRecuperacion(string nombre, string link) => $@"
-<!DOCTYPE html>
-<html lang='es'>
-<head><meta charset='UTF-8'></head>
-<body style='margin:0;padding:0;background:#edf2f7;font-family:Segoe UI,Arial,sans-serif;'>
-  <table width='100%' cellpadding='0' cellspacing='0' style='background:#edf2f7;padding:48px 20px;'>
-    <tr><td align='center'>
-      <table width='560' cellpadding='0' cellspacing='0' style='background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,0.10);'>
-        <tr>
-          <td style='background:linear-gradient(135deg,#1a365d,#2c5282);padding:40px;text-align:center;'>
-            <div style='display:inline-block;background:#D4A017;border-radius:14px;padding:14px 18px;margin-bottom:16px;'>
-              <span style='font-size:28px;'>&#128663;</span>
-            </div>
-            <h1 style='color:#ffffff;margin:0;font-size:24px;font-weight:800;'>MagCar Auto Shop</h1>
-            <p style='color:rgba(255,255,255,0.55);margin:6px 0 0;font-size:11px;letter-spacing:2px;text-transform:uppercase;'>Tienda Online</p>
-          </td>
-        </tr>
-        <tr>
-          <td style='padding:40px 44px 32px;'>
-            <h2 style='color:#1a202c;font-size:20px;font-weight:700;margin:0 0 12px;text-align:center;'>Restablecer contrasena</h2>
-            <p style='color:#718096;font-size:14px;line-height:1.6;margin:0 0 24px;'>Hola <strong style='color:#2d3748;'>{nombre}</strong>, recibimos una solicitud para restablecer la contrasena de tu cuenta en la tienda.</p>
-            <div style='text-align:center;margin:0 0 28px;'>
-              <a href='{link}' style='display:inline-block;background:#2c5282;color:#ffffff;padding:14px 36px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px;'>
-                Restablecer contrasena
-              </a>
-            </div>
-            <p style='color:#a0aec0;font-size:13px;line-height:1.6;margin:0;text-align:center;'>Este enlace expira en <strong>1 hora</strong>.</p>
-          </td>
-        </tr>
-        <tr>
-          <td style='background:#f7fafc;padding:20px 40px;border-top:1px solid #e2e8f0;text-align:center;'>
-            <p style='color:#a0aec0;font-size:12px;margin:0;'>Â© 2026 MagCar Auto Shop</p>
-          </td>
-        </tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>";
     }
 
-    public record RegistroClienteDto(string Nombre, string Email, string Password, string? Telefono, string? Direccion);
-    public record LoginClienteDto(string Email, string Password);
-    public record ActualizarPerfilDto(string Nombre, string? Telefono, string? Direccion);
-    public record RecuperarClienteDto(string Email);
-    public record ResetPasswordClienteDto(string Token, string NuevaPassword);
+    public class RegistroTiendaDto
+    {
+        public string Nombre { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+        public string? Telefono { get; set; }
+        public bool ActivarAhora { get; set; } = false;
+    }
+
+    public class LoginTiendaDto
+    {
+        public string Email { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+    }
+
+    public class ActualizarPerfilDto
+    {
+        public string Nombre { get; set; } = string.Empty;
+        public string? Telefono { get; set; }
+        public string? Direccion { get; set; }
+    }
+
+    // Renombrados para no chocar con RecuperarDto / ResetPasswordDto ya definidos
+    // en otro controlador dentro del mismo namespace (autoshop.Server.Controllers).
+    public class RecuperarTiendaDto { public string Email { get; set; } = string.Empty; }
+    public class ResetPasswordTiendaDto
+    {
+        public string Token { get; set; } = string.Empty;
+        public string NuevaPassword { get; set; } = string.Empty;
+    }
 }

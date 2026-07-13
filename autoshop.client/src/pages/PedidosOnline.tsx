@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import toast from 'react-hot-toast'
 import Layout from '../components/layout/Layout'
 import ConfirmModal from '../components/ui/ConfirmModal'
 import { API } from '../config/api'
 
-interface Pedido {
+interface PedidoResumen {
     id: string
     numeroPedido: string
     fecha: string
@@ -12,425 +12,328 @@ interface Pedido {
     total: number
     metodoPago: string
     clienteNombre: string
-    clienteTelefono: string | null
+    clienteEmail: string | null
     direccionEntrega: string | null
-    clienteEmail: string
     cantidadItems: number
 }
 
-interface DetalleItem {
-    productoId: string
-    productoNombre: string
-    cantidad: number
-    precioUnitario: number
-    subtotal: number
-}
-
-interface PedidoDetalle extends Pedido {
+interface PedidoDetalle extends PedidoResumen {
+    clienteTelefono: string | null
     notas: string | null
     fechaConfirmacion: string | null
     fechaEntrega: string | null
     fechaCancelacion: string | null
     motivoCancelacion: string | null
-    detalles: DetalleItem[]
+    detalles: {
+        productoId: string
+        productoNombre: string
+        precioUnitario: number
+        cantidad: number
+        subtotal: number
+    }[]
 }
 
-const ESTADO_CONFIG: Record<string, { label: string, bg: string, color: string, icon: string }> = {
-    PENDIENTE: { label: 'Pendiente', bg: '#fffbeb', color: '#b7791f', icon: 'fa-clock' },
-    CONFIRMADO: { label: 'Confirmado', bg: '#ebf8ff', color: '#2b6cb0', icon: 'fa-check-circle' },
-    ENTREGADO: { label: 'Entregado', bg: '#f0fff4', color: '#2f855a', icon: 'fa-box' },
-    CANCELADO: { label: 'Cancelado', bg: '#fff5f5', color: '#c53030', icon: 'fa-times-circle' },
+const fmt = (n: number) => Math.round(n).toLocaleString('es-PY')
+const fmtFecha = (f: string) => new Date(f).toLocaleDateString('es-PY', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit'
+} as Intl.DateTimeFormatOptions)
+
+const ESTADOS: Record<string, { label: string, bg: string, color: string }> = {
+    PENDIENTE: { label: 'Pendiente', bg: '#fffbeb', color: '#b7791f' },
+    CONFIRMADO: { label: 'Confirmado', bg: '#ebf8ff', color: '#2b6cb0' },
+    ENTREGADO: { label: 'Entregado', bg: '#f0fff4', color: '#2f855a' },
+    CANCELADO: { label: 'Cancelado', bg: '#fff5f5', color: '#c53030' },
 }
 
 export default function PedidosOnline() {
-    const [pedidos, setPedidos] = useState<Pedido[]>([])
+    const [pedidos, setPedidos] = useState<PedidoResumen[]>([])
     const [loading, setLoading] = useState(true)
     const [filtroEstado, setFiltroEstado] = useState('')
-    const [detalle, setDetalle] = useState<PedidoDetalle | null>(null)
-    const [showDetalle, setShowDetalle] = useState(false)
-    const [procesando, setProcesando] = useState(false)
+    const [pedidoDetalle, setPedidoDetalle] = useState<PedidoDetalle | null>(null)
+    const [modalConfirmar, setModalConfirmar] = useState(false)
+    const [modalEntregar, setModalEntregar] = useState(false)
+    const [modalCancelar, setModalCancelar] = useState(false)
     const [motivoCancelacion, setMotivoCancelacion] = useState('')
-    const [showCancelar, setShowCancelar] = useState(false)
-    const [showConfirmar, setShowConfirmar] = useState(false)
-    const [showEntregar, setShowEntregar] = useState(false)
+    const [procesando, setProcesando] = useState(false)
 
-    const cargar = async (estado = filtroEstado) => {
+    const cargarPedidos = useCallback(async () => {
         setLoading(true)
         try {
-            const url = estado
-                ? `${API.pedidos}/admin?estado=${estado}`
-                : `${API.pedidos}/admin`
-            const res = await fetch(url)
+            const res = await fetch(`${API.pedidos}/admin?tamano=100`)
             const data = await res.json()
-            setPedidos(data)
+            setPedidos(data.datos || [])
         } catch {
-            toast.error('No se pudieron cargar los pedidos')
+            toast.error('Error al cargar pedidos')
         } finally {
             setLoading(false)
         }
-    }
+    }, [])
 
     useEffect(() => {
-        let cancelado = false
-        const init = async () => {
-            setLoading(true)
-            try {
-                const res = await fetch(`${API.pedidos}/admin`)
-                const data = await res.json()
-                if (!cancelado) setPedidos(data)
-            } catch {
-                if (!cancelado) toast.error('No se pudieron cargar los pedidos')
-            } finally {
-                if (!cancelado) setLoading(false)
-            }
-        }
-        init()
-        return () => { cancelado = true }
-    }, [])
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        cargarPedidos()
+    }, [cargarPedidos])
 
     const verDetalle = async (id: string) => {
         try {
             const res = await fetch(`${API.pedidos}/admin/${id}`)
             const data = await res.json()
-            setDetalle(data)
-            setShowDetalle(true)
-            setMotivoCancelacion('')
+            setPedidoDetalle(data)
         } catch {
-            toast.error('No se pudo cargar el detalle')
+            toast.error('Error al cargar el detalle')
         }
     }
 
     const confirmarPedido = async () => {
-        if (!detalle) return
+        if (!pedidoDetalle) return
         setProcesando(true)
         try {
-            const res = await fetch(`${API.pedidos}/admin/${detalle.id}/confirmar`, { method: 'PUT' })
+            const res = await fetch(`${API.pedidos}/admin/${pedidoDetalle.id}/confirmar`, { method: 'PUT' })
             const data = await res.json()
             if (!res.ok) { toast.error(data.mensaje || 'Error al confirmar'); return }
-            toast.success('Pedido confirmado. Stock actualizado.')
-            setShowConfirmar(false)
-            setShowDetalle(false)
-            await cargar()
-        } catch {
-            toast.error('Error de conexion')
-        } finally {
-            setProcesando(false)
-        }
+            toast.success(`Pedido confirmado. Factura: ${data.numeroFactura}`)
+            setModalConfirmar(false)
+            setPedidoDetalle(prev => prev ? { ...prev, estado: 'CONFIRMADO' } : null)
+            cargarPedidos()
+        } catch { toast.error('Error de conexión') }
+        finally { setProcesando(false) }
     }
 
     const entregarPedido = async () => {
-        if (!detalle) return
+        if (!pedidoDetalle) return
         setProcesando(true)
         try {
-            const res = await fetch(`${API.pedidos}/admin/${detalle.id}/entregar`, { method: 'PUT' })
-            const data = await res.json()
-            if (!res.ok) { toast.error(data.mensaje || 'Error al marcar como entregado'); return }
-            toast.success('Pedido marcado como entregado.')
-            setShowEntregar(false)
-            setShowDetalle(false)
-            await cargar()
-        } catch {
-            toast.error('Error de conexion')
-        } finally {
-            setProcesando(false)
-        }
+            const res = await fetch(`${API.pedidos}/admin/${pedidoDetalle.id}/entregar`, { method: 'PUT' })
+            if (!res.ok) { toast.error('Error al marcar como entregado'); return }
+            toast.success('Pedido marcado como entregado')
+            setModalEntregar(false)
+            setPedidoDetalle(prev => prev ? { ...prev, estado: 'ENTREGADO' } : null)
+            cargarPedidos()
+        } catch { toast.error('Error de conexión') }
+        finally { setProcesando(false) }
     }
 
     const cancelarPedido = async () => {
-        if (!detalle) return
+        if (!pedidoDetalle) return
         setProcesando(true)
         try {
-            const res = await fetch(`${API.pedidos}/admin/${detalle.id}/cancelar`, {
+            const res = await fetch(`${API.pedidos}/admin/${pedidoDetalle.id}/cancelar`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ motivo: motivoCancelacion.trim() || null })
+                body: JSON.stringify({ motivo: motivoCancelacion })
             })
-            const data = await res.json()
-            if (!res.ok) { toast.error(data.mensaje || 'Error al cancelar'); return }
-            toast.success('Pedido cancelado.')
-            setShowCancelar(false)
-            setShowDetalle(false)
-            await cargar()
-        } catch {
-            toast.error('Error de conexion')
-        } finally {
-            setProcesando(false)
-        }
+            if (!res.ok) { toast.error('Error al cancelar'); return }
+            toast.success('Pedido cancelado')
+            setModalCancelar(false)
+            setMotivoCancelacion('')
+            setPedidoDetalle(prev => prev ? { ...prev, estado: 'CANCELADO' } : null)
+            cargarPedidos()
+        } catch { toast.error('Error de conexión') }
+        finally { setProcesando(false) }
     }
 
-    const fmt = (n: number) => n.toLocaleString('es-PY')
-    const fmtFecha = (f: string) => new Date(f).toLocaleDateString('es-PY', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' } as Intl.DateTimeFormatOptions)
+    const pedidosFiltrados = pedidos.filter(p => !filtroEstado || p.estado === filtroEstado)
 
-    const pendientes = pedidos.filter(p => p.estado === 'PENDIENTE').length
+    const thStyle: React.CSSProperties = {
+        background: 'var(--dark)', color: 'white',
+        padding: '10px 16px', fontWeight: 600, fontSize: '13px', textAlign: 'left'
+    }
 
     return (
         <Layout titulo="Pedidos Online">
+            <div style={{ display: 'grid', gridTemplateColumns: pedidoDetalle ? '1fr 380px' : '1fr', gap: '20px', alignItems: 'start' }}>
 
-            {/* Header */}
-            <div className="d-flex justify-content-between align-items-center mb-4">
+                {/* Lista */}
                 <div>
-                    <h5 style={{ fontWeight: 700, margin: 0 }}>Pedidos Online</h5>
-                    <small style={{ color: 'var(--text-muted)' }}>
-                        {pedidos.length} pedidos
-                        {pendientes > 0 && <span style={{ color: '#b7791f', fontWeight: 700 }}> · {pendientes} pendiente{pendientes !== 1 ? 's' : ''}</span>}
-                    </small>
-                </div>
-                <div className="d-flex gap-2">
-                    {['', 'PENDIENTE', 'CONFIRMADO', 'ENTREGADO', 'CANCELADO'].map(estado => {
-                        const cfg = estado ? ESTADO_CONFIG[estado] : null
-                        return (
-                            <button key={estado} onClick={() => { setFiltroEstado(estado); cargar(estado) }}
-                                className="btn btn-sm"
+                    <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                        {['', 'PENDIENTE', 'CONFIRMADO', 'ENTREGADO', 'CANCELADO'].map(e => (
+                            <button key={e} onClick={() => setFiltroEstado(e)}
                                 style={{
-                                    background: filtroEstado === estado ? 'var(--primary)' : 'white',
-                                    color: filtroEstado === estado ? 'white' : 'var(--text-muted)',
-                                    border: '1px solid var(--primary)', fontWeight: 500, fontSize: '12px',
+                                    padding: '6px 14px', borderRadius: '20px', cursor: 'pointer', fontSize: '12px',
+                                    border: `1.5px solid ${filtroEstado === e ? 'var(--primary)' : 'var(--border)'}`,
+                                    background: filtroEstado === e ? 'var(--primary-light)' : 'white',
+                                    color: filtroEstado === e ? 'var(--primary-dark)' : 'var(--text-muted)',
+                                    fontWeight: filtroEstado === e ? 700 : 400,
                                 }}>
-                                {cfg && <i className={`fas ${cfg.icon} mr-1`}></i>}
-                                {estado === '' ? 'Todos' : cfg?.label}
+                                {e === '' ? 'Todos' : ESTADOS[e]?.label}
+                                {e !== '' && (
+                                    <span style={{ marginLeft: '6px', background: 'rgba(0,0,0,0.1)', borderRadius: '10px', padding: '1px 6px', fontSize: '11px' }}>
+                                        {pedidos.filter(p => p.estado === e).length}
+                                    </span>
+                                )}
                             </button>
-                        )
-                    })}
-                </div>
-            </div>
-
-            {/* Tabla */}
-            <div className="card">
-                <div className="card-header">
-                    <i className="fas fa-store mr-2" style={{ color: 'var(--primary)' }}></i>
-                    Pedidos de la tienda online
-                </div>
-                <div className="card-body p-0">
-                    <div className="table-responsive">
-                        <table className="table table-bordered mb-0">
-                            <thead>
-                                <tr>
-                                    <th>Numero</th>
-                                    <th>Fecha</th>
-                                    <th>Cliente</th>
-                                    <th>Contacto</th>
-                                    <th>Items</th>
-                                    <th>Total</th>
-                                    <th>Pago</th>
-                                    <th>Estado</th>
-                                    <th style={{ width: '80px' }}>Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {loading ? (
-                                    <tr><td colSpan={9} className="text-center py-4">
-                                        <i className="fas fa-spinner fa-spin mr-2" style={{ color: 'var(--primary)' }}></i>Cargando...
-                                    </td></tr>
-                                ) : pedidos.length === 0 ? (
-                                    <tr><td colSpan={9} className="text-center py-4" style={{ color: 'var(--text-muted)' }}>
-                                        No hay pedidos{filtroEstado ? ` con estado "${ESTADO_CONFIG[filtroEstado]?.label}"` : ''}.
-                                    </td></tr>
-                                ) : pedidos.map(p => {
-                                    const cfg = ESTADO_CONFIG[p.estado] || ESTADO_CONFIG.PENDIENTE
-                                    return (
-                                        <tr key={p.id} style={{ cursor: 'pointer' }} onClick={() => verDetalle(p.id)}>
-                                            <td>
-                                                <span style={{ fontFamily: 'monospace', fontSize: '12px', background: 'var(--primary-light)', padding: '2px 6px', borderRadius: '4px', color: 'var(--primary-dark)', fontWeight: 700 }}>
-                                                    {p.numeroPedido}
-                                                </span>
-                                            </td>
-                                            <td style={{ fontSize: '12px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{fmtFecha(p.fecha)}</td>
-                                            <td>
-                                                <div style={{ fontWeight: 600, fontSize: '13px' }}>{p.clienteNombre}</div>
-                                                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{p.clienteEmail}</div>
-                                            </td>
-                                            <td style={{ fontSize: '12px' }}>{p.clienteTelefono || '—'}</td>
-                                            <td style={{ textAlign: 'center', fontSize: '13px' }}>{p.cantidadItems}</td>
-                                            <td style={{ fontWeight: 700, color: 'var(--primary-dark)', whiteSpace: 'nowrap' }}>Gs. {fmt(p.total)}</td>
-                                            <td>
-                                                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                                                    <i className={`fas ${p.metodoPago === 'TRANSFERENCIA' ? 'fa-university' : 'fa-money-bill-wave'} mr-1`}></i>
-                                                    {p.metodoPago === 'TRANSFERENCIA' ? 'Transferencia' : 'Efectivo'}
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <span style={{ background: cfg.bg, color: cfg.color, fontSize: '11px', fontWeight: 700, padding: '3px 10px', borderRadius: '20px', whiteSpace: 'nowrap' }}>
-                                                    <i className={`fas ${cfg.icon} mr-1`}></i>{cfg.label}
-                                                </span>
-                                            </td>
-                                            <td onClick={e => e.stopPropagation()}>
-                                                <button className="btn btn-sm btn-primary" onClick={() => verDetalle(p.id)} style={{ padding: '5px 10px' }}>
-                                                    <i className="fas fa-eye"></i>
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    )
-                                })}
-                            </tbody>
-                        </table>
+                        ))}
+                        <button onClick={cargarPedidos} style={{ marginLeft: 'auto', background: 'none', border: '1.5px solid var(--border)', borderRadius: '8px', padding: '6px 12px', cursor: 'pointer', fontSize: '12px', color: 'var(--text-muted)' }}>
+                            <i className="fas fa-sync-alt"></i>
+                        </button>
                     </div>
-                </div>
-            </div>
 
-            {/* Modal detalle */}
-            {showDetalle && detalle && (
-                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-                    <div style={{ background: 'white', borderRadius: '14px', width: '100%', maxWidth: '640px', maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 8px 40px rgba(0,0,0,0.2)' }}>
-
-                        <div style={{ padding: '20px 24px', borderBottom: '2px solid var(--primary-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div>
-                                <h5 style={{ fontWeight: 700, margin: 0 }}>
-                                    <i className="fas fa-receipt mr-2" style={{ color: 'var(--primary)' }}></i>
-                                    {detalle.numeroPedido}
-                                </h5>
-                                <small style={{ color: 'var(--text-muted)' }}>{fmtFecha(detalle.fecha)}</small>
+                    <div className="card">
+                        {loading ? (
+                            <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>
+                                <i className="fas fa-spinner fa-spin fa-2x"></i>
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                {(() => {
-                                    const cfg = ESTADO_CONFIG[detalle.estado] || ESTADO_CONFIG.PENDIENTE
-                                    return (
-                                        <span style={{ background: cfg.bg, color: cfg.color, fontSize: '12px', fontWeight: 700, padding: '5px 14px', borderRadius: '20px' }}>
-                                            <i className={`fas ${cfg.icon} mr-1`}></i>{cfg.label}
-                                        </span>
-                                    )
-                                })()}
-                                <button onClick={() => setShowDetalle(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>
+                        ) : pedidosFiltrados.length === 0 ? (
+                            <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
+                                <i className="fas fa-shopping-bag fa-3x" style={{ opacity: 0.15, display: 'block', marginBottom: '12px' }}></i>
+                                <p>No hay pedidos{filtroEstado ? ` con estado "${ESTADOS[filtroEstado]?.label}"` : ''}.</p>
                             </div>
-                        </div>
-
-                        <div style={{ padding: '24px' }}>
-
-                            {/* Datos cliente */}
-                            <div style={{ background: 'var(--primary-light)', borderRadius: '10px', padding: '16px', marginBottom: '20px' }}>
-                                <div className="row">
-                                    <div className="col-6 mb-2">
-                                        <small style={{ color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', fontSize: '10px' }}>Cliente</small>
-                                        <div style={{ fontWeight: 600, fontSize: '14px' }}>{detalle.clienteNombre}</div>
-                                        <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{detalle.clienteEmail}</div>
-                                    </div>
-                                    <div className="col-6 mb-2">
-                                        <small style={{ color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', fontSize: '10px' }}>Telefono</small>
-                                        <div style={{ fontWeight: 600, fontSize: '14px' }}>{detalle.clienteTelefono || '—'}</div>
-                                    </div>
-                                    <div className="col-6">
-                                        <small style={{ color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', fontSize: '10px' }}>Direccion entrega</small>
-                                        <div style={{ fontSize: '13px' }}>{detalle.direccionEntrega || '—'}</div>
-                                    </div>
-                                    <div className="col-6">
-                                        <small style={{ color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', fontSize: '10px' }}>Metodo de pago</small>
-                                        <div style={{ fontSize: '13px', fontWeight: 600 }}>
-                                            <i className={`fas ${detalle.metodoPago === 'TRANSFERENCIA' ? 'fa-university' : 'fa-money-bill-wave'} mr-1`} style={{ color: 'var(--primary)' }}></i>
-                                            {detalle.metodoPago === 'TRANSFERENCIA' ? 'Transferencia' : 'Efectivo'}
-                                        </div>
-                                    </div>
-                                    {detalle.notas && (
-                                        <div className="col-12 mt-2">
-                                            <small style={{ color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', fontSize: '10px' }}>Notas del cliente</small>
-                                            <div style={{ fontSize: '13px', fontStyle: 'italic' }}>{detalle.notas}</div>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Items */}
-                            <table className="table table-bordered mb-0" style={{ marginBottom: '20px !important' }}>
+                        ) : (
+                            <table className="table mb-0">
                                 <thead>
                                     <tr>
-                                        <th>Producto</th>
-                                        <th style={{ textAlign: 'center', width: '60px' }}>Cant.</th>
-                                        <th style={{ textAlign: 'right' }}>Precio unit.</th>
-                                        <th style={{ textAlign: 'right' }}>Subtotal</th>
+                                        <th style={thStyle}>N° Pedido</th>
+                                        <th style={thStyle}>Fecha</th>
+                                        <th style={thStyle}>Cliente</th>
+                                        <th style={{ ...thStyle, textAlign: 'center' }}>Estado</th>
+                                        <th style={{ ...thStyle, textAlign: 'right' }}>Total</th>
+                                        <th style={thStyle}></th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {detalle.detalles.map((d, i) => (
-                                        <tr key={i}>
-                                            <td style={{ fontSize: '13px' }}>{d.productoNombre}</td>
-                                            <td style={{ textAlign: 'center', fontSize: '13px' }}>{d.cantidad}</td>
-                                            <td style={{ textAlign: 'right', fontSize: '13px' }}>Gs. {fmt(d.precioUnitario)}</td>
-                                            <td style={{ textAlign: 'right', fontWeight: 700, fontSize: '13px' }}>Gs. {fmt(d.subtotal)}</td>
-                                        </tr>
-                                    ))}
-                                    <tr style={{ background: 'var(--primary-light)' }}>
-                                        <td colSpan={3} style={{ textAlign: 'right', fontWeight: 700 }}>Total</td>
-                                        <td style={{ textAlign: 'right', fontWeight: 800, color: 'var(--primary-dark)', fontSize: '16px' }}>Gs. {fmt(detalle.total)}</td>
-                                    </tr>
+                                    {pedidosFiltrados.map(p => {
+                                        const est = ESTADOS[p.estado] || ESTADOS.PENDIENTE
+                                        return (
+                                            <tr key={p.id} style={{ cursor: 'pointer', background: pedidoDetalle?.id === p.id ? 'var(--primary-light)' : 'white' }}
+                                                onClick={() => verDetalle(p.id)}
+                                                onMouseEnter={e => { if (pedidoDetalle?.id !== p.id) e.currentTarget.style.background = 'var(--primary-light)' }}
+                                                onMouseLeave={e => { if (pedidoDetalle?.id !== p.id) e.currentTarget.style.background = 'white' }}>
+                                                <td style={{ padding: '12px 16px', fontWeight: 700, fontSize: '14px' }}>{p.numeroPedido}</td>
+                                                <td style={{ padding: '12px 16px', fontSize: '13px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{fmtFecha(p.fecha)}</td>
+                                                <td style={{ padding: '12px 16px', fontSize: '13px' }}>
+                                                    <div>{p.clienteNombre}</div>
+                                                    {p.clienteEmail && <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{p.clienteEmail}</div>}
+                                                </td>
+                                                <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                                                    <span style={{ background: est.bg, color: est.color, fontSize: '11px', fontWeight: 700, padding: '4px 10px', borderRadius: '20px' }}>{est.label}</span>
+                                                </td>
+                                                <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 700, color: 'var(--primary-dark)', fontSize: '14px' }}>₲ {fmt(p.total)}</td>
+                                                <td style={{ padding: '12px 10px', textAlign: 'center' }}>
+                                                    <i className="fas fa-chevron-right" style={{ color: 'var(--text-muted)', fontSize: '12px' }}></i>
+                                                </td>
+                                            </tr>
+                                        )
+                                    })}
                                 </tbody>
                             </table>
-
-                            {/* Motivo cancelacion */}
-                            {detalle.estado === 'CANCELADO' && detalle.motivoCancelacion && (
-                                <div style={{ background: '#fff5f5', border: '1px solid #feb2b2', borderRadius: '8px', padding: '12px', marginBottom: '16px', fontSize: '13px', color: '#c53030' }}>
-                                    <strong>Motivo de cancelacion:</strong> {detalle.motivoCancelacion}
-                                </div>
-                            )}
-
-                            {/* Input motivo cancelacion */}
-                            {showCancelar && (
-                                <div style={{ marginBottom: '16px' }}>
-                                    <label style={{ fontWeight: 600, fontSize: '13px', marginBottom: '6px', display: 'block' }}>Motivo de cancelacion (opcional)</label>
-                                    <input type="text" className="form-control" placeholder="Ej: Sin stock, cliente desistio..."
-                                        value={motivoCancelacion} onChange={e => setMotivoCancelacion(e.target.value)} autoFocus />
-                                </div>
-                            )}
-
-                            {/* Botones de accion */}
-                            {detalle.estado === 'PENDIENTE' && !showCancelar && (
-                                <div className="d-flex gap-2">
-                                    <button onClick={() => setShowConfirmar(true)}
-                                        className="btn btn-primary flex-grow-1" disabled={procesando}>
-                                        <i className="fas fa-check mr-1"></i> Confirmar pedido
-                                    </button>
-                                    <button onClick={() => setShowCancelar(true)}
-                                        className="btn btn-sm" style={{ background: 'var(--secondary)', color: 'white', border: 'none', padding: '8px 16px' }}>
-                                        <i className="fas fa-times mr-1"></i> Cancelar
-                                    </button>
-                                </div>
-                            )}
-
-                            {detalle.estado === 'PENDIENTE' && showCancelar && (
-                                <div className="d-flex gap-2">
-                                    <button onClick={cancelarPedido} disabled={procesando}
-                                        className="btn btn-sm flex-grow-1" style={{ background: 'var(--secondary)', color: 'white', border: 'none', padding: '10px' }}>
-                                        {procesando ? <i className="fas fa-spinner fa-spin mr-1"></i> : <i className="fas fa-times mr-1"></i>}
-                                        Confirmar cancelacion
-                                    </button>
-                                    <button onClick={() => { setShowCancelar(false); setMotivoCancelacion('') }}
-                                        className="btn btn-sm" style={{ background: 'var(--light)', border: '1px solid var(--border)', padding: '10px 16px' }}>
-                                        Volver
-                                    </button>
-                                </div>
-                            )}
-
-                            {detalle.estado === 'CONFIRMADO' && (
-                                <div className="d-flex gap-2">
-                                    <button onClick={() => setShowEntregar(true)}
-                                        className="btn flex-grow-1" style={{ background: '#2f855a', color: 'white', border: 'none', padding: '10px' }} disabled={procesando}>
-                                        <i className="fas fa-box mr-1"></i> Marcar como entregado
-                                    </button>
-                                    <button onClick={() => setShowCancelar(true)}
-                                        className="btn btn-sm" style={{ background: 'var(--secondary)', color: 'white', border: 'none', padding: '10px 16px' }}>
-                                        <i className="fas fa-times"></i>
-                                    </button>
-                                </div>
-                            )}
-                        </div>
+                        )}
                     </div>
                 </div>
-            )}
 
-            <ConfirmModal
-                show={showConfirmar}
-                titulo="¿Confirmar pedido?"
-                mensaje="Se va a descontar el stock de todos los productos del pedido. Esta accion no se puede deshacer."
-                onConfirmar={confirmarPedido}
-                onCancelar={() => setShowConfirmar(false)}
-                tipo="warning"
-            />
+                {/* Detalle */}
+                {pedidoDetalle && (
+                    <div style={{ position: 'sticky', top: '20px' }}>
+                        <div className="card mb-3">
+                            <div className="card-header d-flex justify-content-between align-items-center">
+                                <span style={{ fontWeight: 700 }}>{pedidoDetalle.numeroPedido}</span>
+                                <button onClick={() => setPedidoDetalle(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '16px' }}>
+                                    <i className="fas fa-times"></i>
+                                </button>
+                            </div>
+                            <div className="card-body" style={{ fontSize: '13px' }}>
+                                <div style={{ marginBottom: '12px' }}>
+                                    {(() => { const est = ESTADOS[pedidoDetalle.estado] || ESTADOS.PENDIENTE; return <span style={{ background: est.bg, color: est.color, fontSize: '12px', fontWeight: 700, padding: '4px 12px', borderRadius: '20px' }}>{est.label}</span> })()}
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '16px' }}>
+                                    <div>
+                                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '2px' }}>CLIENTE</div>
+                                        <div style={{ fontWeight: 600 }}>{pedidoDetalle.clienteNombre}</div>
+                                        {pedidoDetalle.clienteEmail && <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{pedidoDetalle.clienteEmail}</div>}
+                                        {pedidoDetalle.clienteTelefono && <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{pedidoDetalle.clienteTelefono}</div>}
+                                    </div>
+                                    <div>
+                                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '2px' }}>FECHA</div>
+                                        <div>{fmtFecha(pedidoDetalle.fecha)}</div>
+                                    </div>
+                                    {pedidoDetalle.direccionEntrega && (
+                                        <div style={{ gridColumn: '1 / -1' }}>
+                                            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '2px' }}>DIRECCIÓN</div>
+                                            <div>{pedidoDetalle.direccionEntrega}</div>
+                                        </div>
+                                    )}
+                                    {pedidoDetalle.notas && (
+                                        <div style={{ gridColumn: '1 / -1' }}>
+                                            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '2px' }}>NOTAS</div>
+                                            <div style={{ color: 'var(--text-muted)' }}>{pedidoDetalle.notas}</div>
+                                        </div>
+                                    )}
+                                </div>
 
-            <ConfirmModal
-                show={showEntregar}
-                titulo="¿Marcar como entregado?"
-                mensaje="El pedido se marcara como entregado definitivamente."
-                onConfirmar={entregarPedido}
-                onCancelar={() => setShowEntregar(false)}
-                tipo="warning"
-            />
+                                <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '12px' }}>
+                                    <thead>
+                                        <tr style={{ background: 'var(--dark)' }}>
+                                            <th style={{ padding: '7px 10px', fontSize: '11px', color: 'white', textAlign: 'left' }}>Producto</th>
+                                            <th style={{ padding: '7px 10px', fontSize: '11px', color: 'white', textAlign: 'center' }}>Cant.</th>
+                                            <th style={{ padding: '7px 10px', fontSize: '11px', color: 'white', textAlign: 'right' }}>Subtotal</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {pedidoDetalle.detalles.map((d, i) => (
+                                            <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                                                <td style={{ padding: '8px 10px', fontSize: '12px' }}>{d.productoNombre}</td>
+                                                <td style={{ padding: '8px 10px', fontSize: '12px', textAlign: 'center' }}>{d.cantidad}</td>
+                                                <td style={{ padding: '8px 10px', fontSize: '12px', textAlign: 'right', fontWeight: 600 }}>₲ {fmt(d.subtotal)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                    <tfoot>
+                                        <tr style={{ borderTop: '2px solid var(--border)' }}>
+                                            <td colSpan={2} style={{ padding: '10px', fontWeight: 700 }}>Total</td>
+                                            <td style={{ padding: '10px', textAlign: 'right', fontWeight: 800, fontSize: '16px', color: 'var(--primary-dark)' }}>₲ {fmt(pedidoDetalle.total)}</td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+
+                                {/* Acciones */}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    {pedidoDetalle.estado === 'PENDIENTE' && (
+                                        <>
+                                            <button onClick={() => setModalConfirmar(true)} className="btn btn-primary btn-sm" style={{ fontWeight: 600 }}>
+                                                <i className="fas fa-check mr-2"></i>Confirmar pedido
+                                            </button>
+                                            <button onClick={() => setModalCancelar(true)} className="btn btn-sm" style={{ background: '#fff5f5', color: '#c53030', border: '1px solid #fed7d7', fontWeight: 600 }}>
+                                                <i className="fas fa-times mr-2"></i>Cancelar pedido
+                                            </button>
+                                        </>
+                                    )}
+                                    {pedidoDetalle.estado === 'CONFIRMADO' && (
+                                        <>
+                                            <button onClick={() => setModalEntregar(true)} className="btn btn-sm" style={{ background: '#f0fff4', color: '#2f855a', border: '1px solid #c6f6d5', fontWeight: 600 }}>
+                                                <i className="fas fa-box mr-2"></i>Marcar como entregado
+                                            </button>
+                                            <button onClick={() => setModalCancelar(true)} className="btn btn-sm" style={{ background: '#fff5f5', color: '#c53030', border: '1px solid #fed7d7', fontWeight: 600 }}>
+                                                <i className="fas fa-times mr-2"></i>Cancelar pedido
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            <ConfirmModal show={modalConfirmar} titulo="Confirmar pedido"
+                mensaje="Se descontará el stock y se creará una venta en el sistema."
+                onConfirmar={confirmarPedido} onCancelar={() => setModalConfirmar(false)}
+                tipo="warning" textoConfirmar={procesando ? 'Procesando...' : 'Confirmar'} />
+
+            <ConfirmModal show={modalEntregar} titulo="Marcar como entregado"
+                mensaje="¿Confirmas que el pedido fue entregado al cliente?"
+                onConfirmar={entregarPedido} onCancelar={() => setModalEntregar(false)}
+                tipo="warning" textoConfirmar={procesando ? 'Procesando...' : 'Marcar entregado'} />
+
+            <ConfirmModal show={modalCancelar} titulo="Cancelar pedido"
+                mensaje=""
+                onConfirmar={cancelarPedido} onCancelar={() => { setModalCancelar(false); setMotivoCancelacion('') }}
+                tipo="danger" textoConfirmar={procesando ? 'Procesando...' : 'Cancelar pedido'}>
+                <div style={{ marginTop: '8px' }}>
+                    <label style={{ fontSize: '13px', fontWeight: 600, marginBottom: '6px', display: 'block' }}>Motivo de cancelación (opcional)</label>
+                    <textarea className="form-control" rows={3} placeholder="Ej: Cliente desistió del pedido..."
+                        value={motivoCancelacion} onChange={e => setMotivoCancelacion(e.target.value)} />
+                </div>
+            </ConfirmModal>
         </Layout>
     )
 }

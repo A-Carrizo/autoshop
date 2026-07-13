@@ -65,11 +65,60 @@ namespace autoshop.Server.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> PostCliente(Cliente cliente)
+        public async Task<IActionResult> PostCliente(Cliente dto)
         {
-            cliente.Id = Guid.NewGuid();
-            cliente.Activo = true;
-            cliente.FechaCreacion = DateTime.UtcNow;
+            // Si existe un cliente desactivado con el mismo email, reactivarlo
+            if (!string.IsNullOrWhiteSpace(dto.Email))
+            {
+                var emailLower = dto.Email.Trim().ToLower();
+                var desactivado = await _context.Clientes
+                    .FirstOrDefaultAsync(c => c.Email != null &&
+                        c.Email.ToLower() == emailLower && !c.Activo);
+
+                if (desactivado != null)
+                {
+                    desactivado.Activo = true;
+                    desactivado.Nombre = dto.Nombre;
+                    desactivado.Ruc = dto.Ruc;
+                    desactivado.Telefono = dto.Telefono;
+                    desactivado.Direccion = dto.Direccion;
+                    desactivado.Email = dto.Email.Trim();
+                    await _context.SaveChangesAsync();
+                    return Ok(desactivado);
+                }
+            }
+
+            // Si existe desactivado con mismo nombre y sin email, reactivarlo
+            if (string.IsNullOrWhiteSpace(dto.Email))
+            {
+                var desactivadoSinEmail = await _context.Clientes
+                    .FirstOrDefaultAsync(c => c.Nombre.ToLower() == dto.Nombre.Trim().ToLower()
+                        && string.IsNullOrWhiteSpace(c.Email) && !c.Activo);
+
+                if (desactivadoSinEmail != null)
+                {
+                    desactivadoSinEmail.Activo = true;
+                    desactivadoSinEmail.Nombre = dto.Nombre;
+                    desactivadoSinEmail.Ruc = dto.Ruc;
+                    desactivadoSinEmail.Telefono = dto.Telefono;
+                    desactivadoSinEmail.Direccion = dto.Direccion;
+                    await _context.SaveChangesAsync();
+                    return Ok(desactivadoSinEmail);
+                }
+            }
+
+            // Cliente nuevo
+            var cliente = new Cliente
+            {
+                Id = Guid.NewGuid(),
+                Nombre = dto.Nombre,
+                Ruc = dto.Ruc,
+                Telefono = dto.Telefono,
+                Direccion = dto.Direccion,
+                Email = dto.Email?.Trim(),
+                Activo = true,
+                FechaCreacion = DateTime.UtcNow,
+            };
             _context.Clientes.Add(cliente);
             await _context.SaveChangesAsync();
             return Ok(cliente);
@@ -84,7 +133,7 @@ namespace autoshop.Server.Controllers
             cliente.Ruc = dto.Ruc;
             cliente.Telefono = dto.Telefono;
             cliente.Direccion = dto.Direccion;
-            cliente.Email = dto.Email;
+            cliente.Email = dto.Email?.Trim();
             await _context.SaveChangesAsync();
             return Ok(cliente);
         }

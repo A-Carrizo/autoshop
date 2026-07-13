@@ -3,10 +3,15 @@ import toast from 'react-hot-toast'
 import Layout from '../components/layout/Layout'
 import ConfirmModal from '../components/ui/ConfirmModal'
 import { API } from '../config/api'
+import logo from '../assets/logo_autoshop.jpeg'
 
 interface Producto {
     id: string; codigoBarras: string; nombre: string
     precioVenta: number; descuentoPct: number; categoriaNombre: string; stockActual: number
+}
+
+interface Cliente {
+    id: string; nombre: string; ruc?: string; telefono?: string; email?: string
 }
 
 interface ItemPresupuesto {
@@ -53,6 +58,13 @@ export default function Presupuestos() {
     const [buscando, setBuscando] = useState(false)
     const [guardando, setGuardando] = useState(false)
 
+    // Buscador de clientes
+    const [busquedaCliente, setBusquedaCliente] = useState('')
+    const [resultadosCliente, setResultadosCliente] = useState<Cliente[]>([])
+    const [buscandoCliente, setBuscandoCliente] = useState(false)
+    const clienteTimeout = useRef<ReturnType<typeof setTimeout>>()
+    const clienteDropdownRef = useRef<HTMLDivElement>(null)
+
     // Servicio
     const [servicioDesc, setServicioDesc] = useState('')
     const [servicioPrecio, setServicioPrecio] = useState('')
@@ -81,6 +93,39 @@ export default function Presupuestos() {
     }, [filtroEstado])
 
     useEffect(() => { cargarPresupuestos() }, [cargarPresupuestos])
+
+    useEffect(() => {
+        const handler = (e: MouseEvent) => {
+            if (clienteDropdownRef.current && !clienteDropdownRef.current.contains(e.target as Node))
+                setResultadosCliente([])
+        }
+        document.addEventListener('mousedown', handler)
+        return () => document.removeEventListener('mousedown', handler)
+    }, [])
+
+    const buscarClientes = async (termino: string) => {
+        if (!termino.trim()) { setResultadosCliente([]); return }
+        setBuscandoCliente(true)
+        try {
+            const res = await fetch(`${API.clientes}/buscar?q=${encodeURIComponent(termino)}`)
+            const data = await res.json()
+            setResultadosCliente(data || [])
+        } catch { } finally { setBuscandoCliente(false) }
+    }
+
+    const handleClienteInput = (val: string) => {
+        setClienteNombre(val)
+        clearTimeout(clienteTimeout.current)
+        if (val.trim()) clienteTimeout.current = setTimeout(() => buscarClientes(val), 250)
+        else setResultadosCliente([])
+    }
+
+    const seleccionarCliente = (c: Cliente) => {
+        setClienteNombre(c.nombre)
+        setClienteRuc(c.ruc || '')
+        setClienteTelefono(c.telefono || '')
+        setResultadosCliente([])
+    }
 
     const buscarProductos = async (termino: string) => {
         if (!termino.trim()) { setResultados([]); return }
@@ -292,41 +337,102 @@ export default function Presupuestos() {
                         </div>
                     </div>
 
-                    {/* Items */}
-                    <div className="card" id="presupuesto-print">
-                        <div className="card-header" style={{ fontSize: '13px' }}><i className="fas fa-list mr-2" style={{ color: 'var(--primary)' }}></i>Items del presupuesto</div>
-                        <table className="table mb-0">
+                    {/* DOCUMENTO IMPRIMIBLE A4 */}
+                    <div id="presupuesto-print" style={{ background: 'white', border: '1px solid #e0e0e0', borderRadius: '8px', padding: '40px', fontFamily: 'Arial, sans-serif' }}>
+                        {/* Encabezado */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px', borderBottom: '2px solid #1a1a1a', paddingBottom: '24px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                <img src={logo} alt="MagCar" style={{ width: '60px', height: '60px', objectFit: 'contain', borderRadius: '8px' }} />
+                                <div>
+                                    <div style={{ fontWeight: 800, fontSize: '20px', letterSpacing: '1px', color: '#1a1a1a' }}>MAGCAR AUTO SHOP</div>
+                                    <div style={{ fontSize: '12px', color: '#666', marginTop: '2px' }}>Accesorios y Luces Automotrices</div>
+                                    <div style={{ fontSize: '12px', color: '#666' }}>Asunción, Paraguay</div>
+                                </div>
+                            </div>
+                            <div style={{ textAlign: 'right' }}>
+                                <div style={{ fontSize: '26px', fontWeight: 800, color: '#1a1a1a' }}>PRESUPUESTO</div>
+                                <div style={{ fontSize: '16px', fontWeight: 700, color: '#CC0000', marginTop: '4px' }}>{p.numeroPresupuesto}</div>
+                                <div style={{ fontSize: '12px', color: '#666', marginTop: '8px' }}>Fecha: {new Date(p.fecha).toLocaleDateString('es-PY', { day: '2-digit', month: 'long', year: 'numeric' })}</div>
+                                <div style={{ display: 'inline-block', marginTop: '8px', padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 700, background: est.bg, color: est.color }}>{est.label.toUpperCase()}</div>
+                            </div>
+                        </div>
+
+                        {/* Datos cliente */}
+                        {(p.clienteNombre || p.clienteRuc || p.clienteTelefono) && (
+                            <div style={{ marginBottom: '28px', padding: '16px', background: '#f9f9f9', borderRadius: '6px', borderLeft: '4px solid #1a1a1a' }}>
+                                <div style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '1px', color: '#666', marginBottom: '8px' }}>Datos del cliente</div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                                    {p.clienteNombre && <div><span style={{ fontSize: '11px', color: '#888' }}>Nombre: </span><span style={{ fontSize: '13px', fontWeight: 600 }}>{p.clienteNombre}</span></div>}
+                                    {p.clienteRuc && <div><span style={{ fontSize: '11px', color: '#888' }}>RUC: </span><span style={{ fontSize: '13px', fontWeight: 600 }}>{p.clienteRuc}</span></div>}
+                                    {p.clienteTelefono && <div><span style={{ fontSize: '11px', color: '#888' }}>Tel: </span><span style={{ fontSize: '13px', fontWeight: 600 }}>{p.clienteTelefono}</span></div>}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Tabla */}
+                        <table style={{ width: '100%', borderCollapse: 'collapse' as const, marginBottom: '24px' }}>
                             <thead>
-                                <tr>
-                                    <th style={{ background: 'var(--dark)', color: 'white', padding: '8px 12px', fontSize: '12px' }}>Tipo</th>
-                                    <th style={{ background: 'var(--dark)', color: 'white', padding: '8px 12px', fontSize: '12px' }}>Descripción</th>
-                                    <th style={{ background: 'var(--dark)', color: 'white', padding: '8px', fontSize: '12px', textAlign: 'center' }}>Cant.</th>
-                                    <th style={{ background: 'var(--dark)', color: 'white', padding: '8px', fontSize: '12px', textAlign: 'right' }}>Precio</th>
-                                    <th style={{ background: 'var(--dark)', color: 'white', padding: '8px', fontSize: '12px', textAlign: 'center' }}>Desc.</th>
-                                    <th style={{ background: 'var(--dark)', color: 'white', padding: '8px 12px', fontSize: '12px', textAlign: 'right' }}>Subtotal</th>
+                                <tr style={{ background: '#1a1a1a', color: 'white' }}>
+                                    <th style={{ padding: '10px 12px', fontSize: '11px', textAlign: 'left', textTransform: 'uppercase' as const }}>Tipo</th>
+                                    <th style={{ padding: '10px 12px', fontSize: '11px', textAlign: 'left', textTransform: 'uppercase' as const }}>Descripción</th>
+                                    <th style={{ padding: '10px 8px', fontSize: '11px', textAlign: 'center', textTransform: 'uppercase' as const }}>Cant.</th>
+                                    <th style={{ padding: '10px 8px', fontSize: '11px', textAlign: 'right', textTransform: 'uppercase' as const }}>Precio Unit.</th>
+                                    <th style={{ padding: '10px 8px', fontSize: '11px', textAlign: 'center', textTransform: 'uppercase' as const }}>Desc.</th>
+                                    <th style={{ padding: '10px 12px', fontSize: '11px', textAlign: 'right', textTransform: 'uppercase' as const }}>Subtotal</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {p.detalles.map((d: any, i: number) => (
-                                    <tr key={i}>
-                                        <td style={{ padding: '10px 12px', fontSize: '12px' }}>
-                                            <span style={{ background: d.tipo === 'PRODUCTO' ? 'var(--primary-light)' : '#fef3c7', color: d.tipo === 'PRODUCTO' ? 'var(--primary-dark)' : '#92400e', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>
-                                                {d.tipo === 'PRODUCTO' ? 'Producto' : 'Servicio'}
+                                    <tr key={i} style={{ borderBottom: '1px solid #f0f0f0', background: i % 2 === 0 ? 'white' : '#fafafa' }}>
+                                        <td style={{ padding: '10px 12px', fontSize: '11px' }}>
+                                            <span style={{ padding: '2px 8px', borderRadius: '3px', fontSize: '10px', fontWeight: 700, background: d.tipo === 'PRODUCTO' ? '#e8f4fd' : '#fef3c7', color: d.tipo === 'PRODUCTO' ? '#1a5276' : '#92400e' }}>
+                                                {d.tipo === 'PRODUCTO' ? 'PRODUCTO' : 'SERVICIO'}
                                             </span>
                                         </td>
                                         <td style={{ padding: '10px 12px', fontSize: '13px', fontWeight: 500 }}>{d.descripcion}</td>
                                         <td style={{ padding: '10px 8px', fontSize: '13px', textAlign: 'center' }}>{d.cantidad}</td>
                                         <td style={{ padding: '10px 8px', fontSize: '13px', textAlign: 'right' }}>₲ {fmt(d.precioUnitario)}</td>
-                                        <td style={{ padding: '10px 8px', fontSize: '13px', textAlign: 'center', color: d.descuentoPct > 0 ? 'var(--secondary)' : 'inherit' }}>{d.descuentoPct > 0 ? `${d.descuentoPct}%` : '-'}</td>
-                                        <td style={{ padding: '10px 12px', fontSize: '13px', textAlign: 'right', fontWeight: 700, color: 'var(--primary-dark)' }}>₲ {fmt(d.subtotal)}</td>
+                                        <td style={{ padding: '10px 8px', fontSize: '13px', textAlign: 'center', color: d.descuentoPct > 0 ? '#c0392b' : '#999' }}>{d.descuentoPct > 0 ? `${d.descuentoPct}%` : '-'}</td>
+                                        <td style={{ padding: '10px 12px', fontSize: '13px', textAlign: 'right', fontWeight: 700 }}>₲ {fmt(d.subtotal)}</td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
-                        <div style={{ padding: '16px', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
-                            <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Subtotal: ₲ {fmt(p.subtotal)}</div>
-                            {p.descuento > 0 && <div style={{ fontSize: '13px', color: 'var(--secondary)' }}>Descuentos: - ₲ {fmt(p.descuento)}</div>}
-                            <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--primary-dark)' }}>TOTAL: ₲ {fmt(p.total)}</div>
+
+                        {/* Totales */}
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '32px' }}>
+                            <div style={{ minWidth: '260px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: '13px', color: '#555' }}>
+                                    <span>Subtotal</span><span>₲ {fmt(p.subtotal)}</span>
+                                </div>
+                                {p.descuento > 0 && (
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: '13px', color: '#c0392b' }}>
+                                        <span>Descuentos</span><span>- ₲ {fmt(p.descuento)}</span>
+                                    </div>
+                                )}
+                                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px', marginTop: '8px', background: '#1a1a1a', borderRadius: '6px', color: 'white' }}>
+                                    <span style={{ fontWeight: 700, fontSize: '15px' }}>TOTAL</span>
+                                    <span style={{ fontWeight: 800, fontSize: '20px' }}>₲ {fmt(p.total)}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Notas */}
+                        {p.notas && (
+                            <div style={{ marginBottom: '24px', padding: '12px 16px', background: '#fffbeb', borderRadius: '6px', border: '1px solid #f6e05e', fontSize: '12px', color: '#744210' }}>
+                                <strong>Notas:</strong> {p.notas}
+                            </div>
+                        )}
+
+                        {/* Pie */}
+                        <div style={{ borderTop: '1px solid #e0e0e0', paddingTop: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                            <div style={{ fontSize: '11px', color: '#999' }}>
+                                <div>Este presupuesto tiene una validez de 30 días a partir de la fecha de emisión.</div>
+                                <div style={{ marginTop: '4px' }}>MagCar Auto Shop — Accesorios y Luces Automotrices</div>
+                            </div>
+                            <div style={{ textAlign: 'center' }}>
+                                <div style={{ width: '140px', borderTop: '1px solid #333', paddingTop: '8px', fontSize: '11px', color: '#555' }}>Firma y sello</div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -336,7 +442,12 @@ export default function Presupuestos() {
                         .no-print { display: none !important; }
                         body * { visibility: hidden; }
                         #presupuesto-print, #presupuesto-print * { visibility: visible; }
-                        #presupuesto-print { position: fixed; left: 0; top: 0; width: 100%; border: none !important; padding: 16px !important; }
+                        #presupuesto-print {
+                            position: fixed; left: 0; top: 0;
+                            width: 100%; border: none !important;
+                            border-radius: 0 !important;
+                            padding: 15mm !important;
+                        }
                     }
                 `}</style>
 
@@ -351,7 +462,7 @@ export default function Presupuestos() {
                 >
                     <div style={{ padding: '8px 0' }}>
                         <p style={{ fontSize: '13px', marginBottom: '12px', color: 'var(--text-muted)' }}>
-                            Se creará una venta por los productos del presupuesto (servicios excluidos).
+                            Se creará una venta con todos los items. Los productos descontarán stock, los servicios se registran como items adicionales.
                         </p>
                         <div style={{ marginBottom: '10px' }}>
                             <label style={{ fontSize: '12px', fontWeight: 600, marginBottom: '4px', display: 'block' }}>Método de pago</label>
@@ -530,12 +641,38 @@ export default function Presupuestos() {
                     {/* Panel derecho */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', overflow: 'hidden' }}>
 
-                        {/* Cliente */}
+                        {/* Cliente con buscador */}
                         <div className="card">
                             <div className="card-header" style={{ fontSize: '13px' }}><i className="fas fa-user mr-2" style={{ color: 'var(--primary)' }}></i>Cliente</div>
                             <div className="card-body d-flex flex-column gap-2">
-                                <input type="text" className="form-control form-control-sm" placeholder="Nombre del cliente"
-                                    value={clienteNombre} onChange={e => setClienteNombre(e.target.value)} style={{ fontSize: '13px' }} />
+                                <div ref={clienteDropdownRef} style={{ position: 'relative' }}>
+                                    <div style={{ position: 'relative' }}>
+                                        <input type="text" className="form-control form-control-sm"
+                                            placeholder="Buscar cliente registrado o escribir nombre..."
+                                            value={clienteNombre}
+                                            onChange={e => handleClienteInput(e.target.value)}
+                                            style={{ fontSize: '13px', paddingRight: '28px' }} />
+                                        {buscandoCliente && (
+                                            <span style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)' }}>
+                                                <i className="fas fa-spinner fa-spin" style={{ color: 'var(--primary)', fontSize: '11px' }}></i>
+                                            </span>
+                                        )}
+                                    </div>
+                                    {resultadosCliente.length > 0 && (
+                                        <div style={{ position: 'absolute', left: 0, right: 0, top: '100%', zIndex: 9999, background: 'white', border: '1px solid var(--border)', borderRadius: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
+                                            {resultadosCliente.map(c => (
+                                                <div key={c.id} onClick={() => seleccionarCliente(c)}
+                                                    style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid #f0f0f0', fontSize: '13px' }}
+                                                    onMouseEnter={e => e.currentTarget.style.background = 'var(--primary-light)'}
+                                                    onMouseLeave={e => e.currentTarget.style.background = 'white'}>
+                                                    <div style={{ fontWeight: 600 }}>{c.nombre}</div>
+                                                    {c.ruc && <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>RUC: {c.ruc}</div>}
+                                                    {c.telefono && <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Tel: {c.telefono}</div>}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
                                 <input type="text" className="form-control form-control-sm" placeholder="RUC (opcional)"
                                     value={clienteRuc} onChange={e => setClienteRuc(e.target.value)} style={{ fontSize: '13px' }} />
                                 <input type="text" className="form-control form-control-sm" placeholder="Teléfono (opcional)"

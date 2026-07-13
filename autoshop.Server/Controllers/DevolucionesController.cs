@@ -17,21 +17,31 @@ namespace autoshop.Server.Controllers
         {
             var total = await _context.Devoluciones.CountAsync();
             var datos = await _context.Devoluciones
-                .Include(d => d.Venta).Include(d => d.Detalles)
+                .Include(d => d.Venta)
+                .Include(d => d.Detalles).ThenInclude(dd => dd.Producto)
                 .OrderByDescending(d => d.Fecha)
                 .Skip((pagina - 1) * tamano).Take(tamano)
-                .Select(d => new
-                {
-                    d.Id,
-                    d.Fecha,
-                    d.Motivo,
-                    d.MontoDevuelto,
-                    NumeroFactura = d.Venta.NumeroFactura,
-                    ClienteNombre = d.Venta.ClienteNombre,
-                    CantidadItems = d.Detalles.Count
-                }).ToListAsync();
+                .ToListAsync();
 
-            return Ok(new { datos, total, pagina, tamano, totalPaginas = (int)Math.Ceiling((double)total / tamano) });
+            var datosMapeados = datos.Select(d => new
+            {
+                d.Id,
+                d.Fecha,
+                d.Motivo,
+                d.MontoDevuelto,
+                NumeroFactura = d.Venta.NumeroFactura,
+                ClienteNombre = d.Venta.ClienteNombre,
+                CantidadItems = d.Detalles.Count,
+                Detalles = d.Detalles.Select(dd => new
+                {
+                    dd.ProductoId,
+                    NombreProducto = dd.Producto != null ? dd.Producto.Nombre : "Producto eliminado",
+                    dd.Cantidad,
+                    dd.Monto,
+                })
+            });
+
+            return Ok(new { datos = datosMapeados, total, pagina, tamano, totalPaginas = (int)Math.Ceiling((double)total / tamano) });
         }
 
         [HttpGet("venta/{ventaId}")]

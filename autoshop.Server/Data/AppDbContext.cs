@@ -15,15 +15,10 @@ namespace autoshop.Server.Data
         public DbSet<Devolucion> Devoluciones { get; set; }
         public DbSet<DevolucionDetalle> DevolucionDetalles { get; set; }
         public DbSet<MovimientoInventario> MovimientosInventario { get; set; }
-
         public DbSet<Presupuesto> Presupuestos { get; set; }
         public DbSet<PresupuestoDetalle> PresupuestoDetalles { get; set; }
-
-        public DbSet<Cliente> Clientes { get; set; }
+        public DbSet<Cliente> Clientes { get; set; }  // tabla unificada
         public DbSet<Usuario> Usuarios { get; set; }
-
-        // Tienda online
-        public DbSet<ClienteTienda> ClientesTienda { get; set; }
         public DbSet<Pedido> Pedidos { get; set; }
         public DbSet<PedidoDetalle> PedidoDetalles { get; set; }
 
@@ -73,7 +68,7 @@ namespace autoshop.Server.Data
                 e.Property(x => x.Total).HasPrecision(18, 2);
             });
 
-            // VentaDetalle — actualizado para soportar servicios sin producto
+            // VentaDetalle
             modelBuilder.Entity<VentaDetalle>(e =>
             {
                 e.HasKey(x => x.Id);
@@ -128,14 +123,14 @@ namespace autoshop.Server.Data
                  .HasForeignKey(x => x.ProductoId);
             });
 
-            // ClienteTienda
-            modelBuilder.Entity<ClienteTienda>(e =>
+            // Cliente (tabla unificada ERP + tienda)
+            modelBuilder.Entity<Cliente>(e =>
             {
                 e.HasKey(x => x.Id);
                 e.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
                 e.Property(x => x.Nombre).IsRequired().HasMaxLength(150);
-                e.Property(x => x.Email).IsRequired().HasMaxLength(150);
-                e.HasIndex(x => x.Email).IsUnique();
+                e.Property(x => x.Email).HasMaxLength(150);
+                e.HasIndex(x => x.Email).IsUnique().HasFilter("\"Email\" IS NOT NULL");
             });
 
             // Presupuesto
@@ -172,16 +167,16 @@ namespace autoshop.Server.Data
                  .IsRequired(false);
             });
 
-            // Pedido
+            // Pedido — ahora usa ClienteId (tabla unificada)
             modelBuilder.Entity<Pedido>(e =>
             {
                 e.HasKey(x => x.Id);
                 e.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
                 e.Property(x => x.NumeroPedido).IsRequired().HasMaxLength(20);
                 e.Property(x => x.Total).HasPrecision(18, 2);
-                e.HasOne(x => x.ClienteTienda)
+                e.HasOne(x => x.Cliente)
                  .WithMany(x => x.Pedidos)
-                 .HasForeignKey(x => x.ClienteTiendaId);
+                 .HasForeignKey(x => x.ClienteId);
             });
 
             // PedidoDetalle

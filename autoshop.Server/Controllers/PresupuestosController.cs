@@ -193,8 +193,8 @@ namespace autoshop.Server.Controllers
             {
                 try
                 {
-                    var cliente = await _db.ClientesTienda
-                        .FirstOrDefaultAsync(c => c.Nombre.ToLower() == p.ClienteNombre.ToLower());
+                    var cliente = await _db.Clientes
+                        .FirstOrDefaultAsync(c => c.Nombre.ToLower() == p.ClienteNombre.ToLower() && c.TieneAccesoWeb);
 
                     if (cliente != null && !string.IsNullOrEmpty(cliente.Email))
                     {

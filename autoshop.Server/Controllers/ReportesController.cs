@@ -90,7 +90,8 @@ namespace autoshop.Server.Controllers
 
             // Ganancia del período
             var gananciaPeriodo = ventasPeriodo.SelectMany(v => v.Detalles)
-                .Sum(d => (d.PrecioUnitario - d.Producto.PrecioCompra) * d.Cantidad * (1 - d.DescuentoPct / 100));
+            .Where(d => d.Tipo == "PRODUCTO" && d.Producto != null)
+            .Sum(d => (d.PrecioUnitario - d.Producto!.PrecioCompra) * d.Cantidad * (1 - d.DescuentoPct / 100));
 
             // Proyección mes
             var totalMesActual = ventasMes.Sum(v => v.Total);

@@ -9,107 +9,89 @@ namespace autoshop.Server.Controllers
     [Route("api/tienda/pedidos")]
     public class PedidosController : ControllerBase
     {
-        private readonly AppDbContext _context;
+        private readonly AppDbContext _db;
+        public PedidosController(AppDbContext db) => _db = db;
 
-        public PedidosController(AppDbContext context)
+        private Cliente? ObtenerCliente()
         {
-            _context = context;
+            var auth = Request.Headers["Authorization"].ToString();
+            if (!auth.StartsWith("Bearer ")) return null;
+            var token = auth["Bearer ".Length..].Trim();
+            return _db.Clientes.FirstOrDefault(c =>
+                c.Token == token &&
+                c.TokenExpira > DateTime.UtcNow &&
+                c.TieneAccesoWeb);
         }
 
-        // Obtiene el cliente de tienda autenticado a partir del token, o null si no hay sesion valida
-        private async Task<ClienteTienda?> ObtenerClienteAutenticado(string? auth)
-        {
-            var token = auth?.Replace("Bearer ", "");
-            if (string.IsNullOrEmpty(token)) return null;
-            return await _context.ClientesTienda.FirstOrDefaultAsync(c =>
-                c.Token == token && c.TokenExpira > DateTime.UtcNow && c.Activo);
-        }
-
-        private static string GenerarNumeroPedido() =>
-            "PED-" + DateTime.UtcNow.ToString("yyyyMMddHHmmss");
-
-        // ===================== ENDPOINTS DEL CLIENTE (TIENDA) =====================
-
+        // POST /api/tienda/pedidos — crear pedido (cliente)
         [HttpPost]
-        public async Task<IActionResult> CrearPedido(
-            [FromHeader(Name = "Authorization")] string? auth,
-            [FromBody] CrearPedidoDto dto)
+        public async Task<IActionResult> CrearPedido([FromBody] CrearPedidoDto dto)
         {
-            var cliente = await ObtenerClienteAutenticado(auth);
-            if (cliente == null) return Unauthorized(new { mensaje = "Debes iniciar sesion para realizar un pedido." });
+            var cliente = ObtenerCliente();
+            if (cliente == null) return Unauthorized(new { mensaje = "Sesión inválida" });
 
             if (dto.Items == null || dto.Items.Count == 0)
-                return BadRequest(new { mensaje = "El carrito esta vacio." });
+                return BadRequest(new { mensaje = "El pedido debe tener al menos un item" });
 
-            // Validar productos y calcular totales con datos reales de la BD (no confiar en el frontend)
-            var productoIds = dto.Items.Select(i => i.ProductoId).ToList();
-            var productos = await _context.Productos
-                .Include(p => p.Inventario)
-                .Where(p => productoIds.Contains(p.Id) && p.Activo && p.VisibleWeb)
-                .ToListAsync();
+            var ultimo = await _db.Pedidos.OrderByDescending(p => p.Fecha).FirstOrDefaultAsync();
+            int sig = 1;
+            if (ultimo != null && ultimo.NumeroPedido.StartsWith("PED-"))
+                if (int.TryParse(ultimo.NumeroPedido.Replace("PED-", ""), out int n)) sig = n + 1;
+            var numero = $"PED-{sig:D6}";
 
-            if (productos.Count != productoIds.Distinct().Count())
-                return BadRequest(new { mensaje = "Uno o mas productos del carrito ya no estan disponibles." });
-
-            var detalles = new List<PedidoDetalle>();
             decimal total = 0;
+            var detalles = new List<PedidoDetalle>();
 
             foreach (var item in dto.Items)
             {
-                var producto = productos.First(p => p.Id == item.ProductoId);
+                var prod = await _db.Productos.Include(p => p.Inventario)
+                    .FirstOrDefaultAsync(p => p.Id == item.ProductoId && p.Activo && p.VisibleWeb);
+                if (prod == null) return BadRequest(new { mensaje = $"Producto no encontrado" });
+                if (prod.Inventario == null || prod.Inventario.StockActual < item.Cantidad)
+                    return BadRequest(new { mensaje = $"Stock insuficiente para '{prod.Nombre}'" });
 
-                if (item.Cantidad <= 0)
-                    return BadRequest(new { mensaje = $"Cantidad invalida para {producto.Nombre}." });
-
-                var stockDisponible = producto.Inventario?.StockActual ?? 0;
-                if (item.Cantidad > stockDisponible)
-                    return BadRequest(new { mensaje = $"No hay suficiente stock de '{producto.Nombre}'. Disponible: {stockDisponible}." });
-
-                var precioConDescuento = producto.PrecioVenta - (producto.PrecioVenta * producto.DescuentoPct / 100);
-                var subtotal = precioConDescuento * item.Cantidad;
-                total += subtotal;
+                var precio = prod.PrecioVenta * (1 - prod.DescuentoPct / 100m);
+                var sub = precio * item.Cantidad;
+                total += sub;
 
                 detalles.Add(new PedidoDetalle
                 {
-                    Id = Guid.NewGuid(),
-                    ProductoId = producto.Id,
-                    ProductoNombre = producto.Nombre,
+                    ProductoId = prod.Id,
+                    ProductoNombre = prod.Nombre,
+                    PrecioUnitario = precio,
                     Cantidad = item.Cantidad,
-                    PrecioUnitario = precioConDescuento,
-                    Subtotal = subtotal
+                    Subtotal = sub,
                 });
             }
 
             var pedido = new Pedido
             {
-                Id = Guid.NewGuid(),
-                NumeroPedido = GenerarNumeroPedido(),
-                ClienteTiendaId = cliente.Id,
-                Fecha = DateTime.UtcNow,
+                NumeroPedido = numero,
+                ClienteId = cliente.Id,
                 ClienteNombre = cliente.Nombre,
                 ClienteTelefono = dto.Telefono ?? cliente.Telefono,
-                DireccionEntrega = dto.DireccionEntrega ?? cliente.Direccion,
+                DireccionEntrega = dto.DireccionEntrega,
                 Notas = dto.Notas,
-                MetodoPago = dto.MetodoPago,
-                Estado = "PENDIENTE",
+                MetodoPago = dto.MetodoPago ?? "TRANSFERENCIA",
                 Total = total,
-                Detalles = detalles
+                Detalles = detalles,
             };
 
-            _context.Pedidos.Add(pedido);
-            await _context.SaveChangesAsync();
+            _db.Pedidos.Add(pedido);
+            await _db.SaveChangesAsync();
 
-            return Ok(new { id = pedido.Id, numeroPedido = pedido.NumeroPedido, total = pedido.Total, mensaje = "Pedido creado correctamente. Nos pondremos en contacto para coordinar el pago y la entrega." });
+            return Ok(new { pedido.Id, pedido.NumeroPedido, pedido.Total });
         }
 
+        // GET /api/tienda/pedidos/mis-pedidos
         [HttpGet("mis-pedidos")]
-        public async Task<IActionResult> MisPedidos([FromHeader(Name = "Authorization")] string? auth)
+        public async Task<IActionResult> MisPedidos()
         {
-            var cliente = await ObtenerClienteAutenticado(auth);
-            if (cliente == null) return Unauthorized(new { mensaje = "Sesion invalida." });
+            var cliente = ObtenerCliente();
+            if (cliente == null) return Unauthorized();
 
-            var pedidos = await _context.Pedidos
-                .Where(p => p.ClienteTiendaId == cliente.Id)
+            var pedidos = await _db.Pedidos
+                .Where(p => p.ClienteId == cliente.Id)
                 .OrderByDescending(p => p.Fecha)
                 .Select(p => new
                 {
@@ -120,23 +102,23 @@ namespace autoshop.Server.Controllers
                     p.Total,
                     p.MetodoPago,
                     CantidadItems = p.Detalles.Count
-                })
-                .ToListAsync();
+                }).ToListAsync();
 
             return Ok(pedidos);
         }
 
+        // GET /api/tienda/pedidos/mis-pedidos/:id
         [HttpGet("mis-pedidos/{id}")]
-        public async Task<IActionResult> MiPedidoDetalle(Guid id, [FromHeader(Name = "Authorization")] string? auth)
+        public async Task<IActionResult> DetallePedido(Guid id)
         {
-            var cliente = await ObtenerClienteAutenticado(auth);
-            if (cliente == null) return Unauthorized(new { mensaje = "Sesion invalida." });
+            var cliente = ObtenerCliente();
+            if (cliente == null) return Unauthorized();
 
-            var pedido = await _context.Pedidos
+            var pedido = await _db.Pedidos
                 .Include(p => p.Detalles)
-                .FirstOrDefaultAsync(p => p.Id == id && p.ClienteTiendaId == cliente.Id);
+                .FirstOrDefaultAsync(p => p.Id == id && p.ClienteId == cliente.Id);
 
-            if (pedido == null) return NotFound();
+            if (pedido == null) return NotFound(new { mensaje = "Pedido no encontrado" });
 
             return Ok(new
             {
@@ -147,31 +129,36 @@ namespace autoshop.Server.Controllers
                 pedido.Total,
                 pedido.MetodoPago,
                 pedido.DireccionEntrega,
-                pedido.ClienteTelefono,
+                ClienteTelefono = pedido.ClienteTelefono,
                 pedido.Notas,
                 pedido.FechaConfirmacion,
                 pedido.FechaEntrega,
                 pedido.FechaCancelacion,
                 pedido.MotivoCancelacion,
-                Detalles = pedido.Detalles.Select(d => new { d.ProductoNombre, d.Cantidad, d.PrecioUnitario, d.Subtotal })
+                Detalles = pedido.Detalles.Select(d => new
+                {
+                    d.ProductoId,
+                    d.ProductoNombre,
+                    d.PrecioUnitario,
+                    d.Cantidad,
+                    d.Subtotal
+                })
             });
         }
 
-        // ===================== ENDPOINTS DEL ERP (ADMIN) =====================
-
+        // GET /api/tienda/pedidos/admin — listar todos (ERP)
         [HttpGet("admin")]
-        public async Task<IActionResult> GetPedidosAdmin([FromQuery] string? estado = null)
+        public async Task<IActionResult> ListarAdmin(
+            [FromQuery] string? estado,
+            [FromQuery] int pagina = 1,
+            [FromQuery] int tamano = 25)
         {
-            var query = _context.Pedidos
-                .Include(p => p.ClienteTienda)
-                .Include(p => p.Detalles)
-                .AsQueryable();
+            var q = _db.Pedidos.Include(p => p.Cliente).AsQueryable();
+            if (!string.IsNullOrEmpty(estado)) q = q.Where(p => p.Estado == estado.ToUpper());
 
-            if (!string.IsNullOrWhiteSpace(estado))
-                query = query.Where(p => p.Estado == estado.ToUpper());
-
-            var pedidos = await query
-                .OrderByDescending(p => p.Fecha)
+            var total = await q.CountAsync();
+            var datos = await q.OrderByDescending(p => p.Fecha)
+                .Skip((pagina - 1) * tamano).Take(tamano)
                 .Select(p => new
                 {
                     p.Id,
@@ -181,25 +168,24 @@ namespace autoshop.Server.Controllers
                     p.Total,
                     p.MetodoPago,
                     p.ClienteNombre,
-                    p.ClienteTelefono,
                     p.DireccionEntrega,
-                    ClienteEmail = p.ClienteTienda.Email,
+                    ClienteEmail = p.Cliente.Email,
                     CantidadItems = p.Detalles.Count
-                })
-                .ToListAsync();
+                }).ToListAsync();
 
-            return Ok(pedidos);
+            return Ok(new { datos, total, pagina, totalPaginas = (int)Math.Ceiling((double)total / tamano) });
         }
 
+        // GET /api/tienda/pedidos/admin/:id
         [HttpGet("admin/{id}")]
-        public async Task<IActionResult> GetPedidoAdmin(Guid id)
+        public async Task<IActionResult> DetalleAdmin(Guid id)
         {
-            var pedido = await _context.Pedidos
-                .Include(p => p.ClienteTienda)
-                .Include(p => p.Detalles)
+            var pedido = await _db.Pedidos
+                .Include(p => p.Cliente)
+                .Include(p => p.Detalles).ThenInclude(d => d.Producto)
                 .FirstOrDefaultAsync(p => p.Id == id);
 
-            if (pedido == null) return NotFound();
+            if (pedido == null) return NotFound(new { mensaje = "Pedido no encontrado" });
 
             return Ok(new
             {
@@ -209,169 +195,143 @@ namespace autoshop.Server.Controllers
                 pedido.Estado,
                 pedido.Total,
                 pedido.MetodoPago,
+                pedido.DireccionEntrega,
                 pedido.ClienteNombre,
                 pedido.ClienteTelefono,
-                pedido.DireccionEntrega,
                 pedido.Notas,
-                ClienteEmail = pedido.ClienteTienda.Email,
+                ClienteEmail = pedido.Cliente.Email,
                 pedido.FechaConfirmacion,
                 pedido.FechaEntrega,
                 pedido.FechaCancelacion,
                 pedido.MotivoCancelacion,
-                Detalles = pedido.Detalles.Select(d => new { d.ProductoId, d.ProductoNombre, d.Cantidad, d.PrecioUnitario, d.Subtotal })
+                Detalles = pedido.Detalles.Select(d => new
+                {
+                    d.ProductoId,
+                    d.ProductoNombre,
+                    d.PrecioUnitario,
+                    d.Cantidad,
+                    d.Subtotal
+                })
             });
         }
 
+        // PUT /api/tienda/pedidos/admin/:id/confirmar
         [HttpPut("admin/{id}/confirmar")]
-        public async Task<IActionResult> ConfirmarPedido(Guid id)
+        public async Task<IActionResult> Confirmar(Guid id)
         {
-            var pedido = await _context.Pedidos
-                .Include(p => p.Detalles)
-                .Include(p => p.ClienteTienda)
+            var pedido = await _db.Pedidos.Include(p => p.Detalles)
                 .FirstOrDefaultAsync(p => p.Id == id);
-
             if (pedido == null) return NotFound();
             if (pedido.Estado != "PENDIENTE")
-                return BadRequest(new { mensaje = "Solo se pueden confirmar pedidos pendientes." });
+                return BadRequest(new { mensaje = "Solo se pueden confirmar pedidos pendientes" });
 
-            // Validar stock antes de tocar nada
-            foreach (var detalle in pedido.Detalles)
-            {
-                var inventario = await _context.Inventarios.FirstOrDefaultAsync(i => i.ProductoId == detalle.ProductoId);
-                if (inventario == null || inventario.StockActual < detalle.Cantidad)
-                    return BadRequest(new { mensaje = $"Stock insuficiente para '{detalle.ProductoNombre}'. No se puede confirmar el pedido." });
-            }
-
-            using var transaccion = await _context.Database.BeginTransactionAsync();
+            using var tx = await _db.Database.BeginTransactionAsync();
             try
             {
-                // Descontar stock y registrar movimientos
-                foreach (var detalle in pedido.Detalles)
+                foreach (var det in pedido.Detalles)
                 {
-                    var inventario = await _context.Inventarios.FirstAsync(i => i.ProductoId == detalle.ProductoId);
-                    inventario.StockActual -= detalle.Cantidad;
-                    inventario.UltimaActualizacion = DateTime.UtcNow;
-
-                    _context.MovimientosInventario.Add(new MovimientoInventario
+                    var inv = await _db.Inventarios.FirstOrDefaultAsync(i => i.ProductoId == det.ProductoId);
+                    if (inv == null || inv.StockActual < det.Cantidad)
+                        return BadRequest(new { mensaje = $"Stock insuficiente para '{det.ProductoNombre}'" });
+                    inv.StockActual -= det.Cantidad;
+                    _db.MovimientosInventario.Add(new MovimientoInventario
                     {
-                        Id = Guid.NewGuid(),
-                        ProductoId = detalle.ProductoId,
-                        Tipo = "VENTA",
-                        Cantidad = -detalle.Cantidad,
+                        ProductoId = det.ProductoId,
+                        Tipo = "SALIDA",
+                        Cantidad = det.Cantidad,
                         Referencia = pedido.NumeroPedido,
+                        Notas = $"Pedido online {pedido.NumeroPedido}",
                         Fecha = DateTime.UtcNow,
-                        Notas = $"Pedido online {pedido.NumeroPedido} confirmado"
                     });
                 }
 
-                // Crear la Venta correspondiente, para que se refleje en Historial/Reportes del POS
+                // Crear venta en el ERP
+                var ultimaVenta = await _db.Ventas.OrderByDescending(v => v.Fecha).FirstOrDefaultAsync();
+                int sigNum = 1;
+                if (ultimaVenta != null && int.TryParse(ultimaVenta.NumeroFactura, out int nv)) sigNum = nv + 1;
+
                 var venta = new Venta
                 {
-                    Id = Guid.NewGuid(),
-                    NumeroFactura = pedido.NumeroPedido,
-                    Fecha = DateTime.UtcNow,
+                    NumeroFactura = sigNum.ToString("D8"),
                     ClienteNombre = pedido.ClienteNombre,
-                    ClienteRuc = null,
                     MetodoPago = pedido.MetodoPago,
                     TipoComprobante = "PEDIDO_ONLINE",
                     Subtotal = pedido.Total,
                     Descuento = 0,
                     Total = pedido.Total,
-                    Estado = "COMPLETADA"
-                };
-
-                foreach (var detalle in pedido.Detalles)
-                {
-                    venta.Detalles.Add(new VentaDetalle
+                    Estado = "COMPLETADA",
+                    Detalles = pedido.Detalles.Select(d => new VentaDetalle
                     {
-                        Id = Guid.NewGuid(),
-                        VentaId = venta.Id,
-                        ProductoId = detalle.ProductoId,
-                        Cantidad = detalle.Cantidad,
-                        PrecioUnitario = detalle.PrecioUnitario,
+                        Tipo = "PRODUCTO",
+                        ProductoId = d.ProductoId,
+                        Descripcion = d.ProductoNombre,
+                        Cantidad = d.Cantidad,
+                        PrecioUnitario = d.PrecioUnitario,
                         DescuentoPct = 0,
-                        Subtotal = detalle.Subtotal
-                    });
-                }
-
-                _context.Ventas.Add(venta);
+                        Subtotal = d.Subtotal
+                    }).ToList()
+                };
+                _db.Ventas.Add(venta);
 
                 pedido.Estado = "CONFIRMADO";
                 pedido.FechaConfirmacion = DateTime.UtcNow;
+                await _db.SaveChangesAsync();
+                await tx.CommitAsync();
 
-                await _context.SaveChangesAsync();
-                await transaccion.CommitAsync();
+                return Ok(new { mensaje = "Pedido confirmado", numeroFactura = venta.NumeroFactura });
             }
-            catch
-            {
-                await transaccion.RollbackAsync();
-                return StatusCode(500, new { mensaje = "Error al confirmar el pedido. No se realizaron cambios." });
-            }
-
-            return Ok(new { mensaje = "Pedido confirmado. Stock actualizado y venta registrada." });
+            catch { await tx.RollbackAsync(); return StatusCode(500, new { mensaje = "Error al confirmar" }); }
         }
 
+        // PUT /api/tienda/pedidos/admin/:id/entregar
         [HttpPut("admin/{id}/entregar")]
-        public async Task<IActionResult> MarcarEntregado(Guid id)
+        public async Task<IActionResult> Entregar(Guid id)
         {
-            var pedido = await _context.Pedidos.FindAsync(id);
+            var pedido = await _db.Pedidos.FindAsync(id);
             if (pedido == null) return NotFound();
             if (pedido.Estado != "CONFIRMADO")
-                return BadRequest(new { mensaje = "Solo se pueden marcar como entregados los pedidos confirmados." });
-
+                return BadRequest(new { mensaje = "Solo se pueden entregar pedidos confirmados" });
             pedido.Estado = "ENTREGADO";
             pedido.FechaEntrega = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
-
-            return Ok(new { mensaje = "Pedido marcado como entregado." });
+            await _db.SaveChangesAsync();
+            return Ok(new { mensaje = "Pedido marcado como entregado" });
         }
 
+        // PUT /api/tienda/pedidos/admin/:id/cancelar
         [HttpPut("admin/{id}/cancelar")]
-        public async Task<IActionResult> CancelarPedido(Guid id, [FromBody] CancelarPedidoDto dto)
+        public async Task<IActionResult> Cancelar(Guid id, [FromBody] CancelarPedidoDto dto)
         {
-            var pedido = await _context.Pedidos
-                .Include(p => p.Detalles)
+            var pedido = await _db.Pedidos.Include(p => p.Detalles)
                 .FirstOrDefaultAsync(p => p.Id == id);
-
             if (pedido == null) return NotFound();
             if (pedido.Estado == "ENTREGADO" || pedido.Estado == "CANCELADO")
-                return BadRequest(new { mensaje = "Este pedido no se puede cancelar." });
+                return BadRequest(new { mensaje = "No se puede cancelar este pedido" });
 
-            // Si ya estaba confirmado (stock ya descontado), hay que devolverlo
             if (pedido.Estado == "CONFIRMADO")
             {
-                foreach (var detalle in pedido.Detalles)
+                foreach (var det in pedido.Detalles)
                 {
-                    var inventario = await _context.Inventarios.FirstOrDefaultAsync(i => i.ProductoId == detalle.ProductoId);
-                    if (inventario != null)
-                    {
-                        inventario.StockActual += detalle.Cantidad;
-                        inventario.UltimaActualizacion = DateTime.UtcNow;
-
-                        _context.MovimientosInventario.Add(new MovimientoInventario
-                        {
-                            Id = Guid.NewGuid(),
-                            ProductoId = detalle.ProductoId,
-                            Tipo = "AJUSTE",
-                            Cantidad = detalle.Cantidad,
-                            Referencia = pedido.NumeroPedido,
-                            Fecha = DateTime.UtcNow,
-                            Notas = $"Cancelacion de pedido online {pedido.NumeroPedido} - devolucion de stock"
-                        });
-                    }
+                    var inv = await _db.Inventarios.FirstOrDefaultAsync(i => i.ProductoId == det.ProductoId);
+                    if (inv != null) inv.StockActual += det.Cantidad;
                 }
             }
 
             pedido.Estado = "CANCELADO";
             pedido.FechaCancelacion = DateTime.UtcNow;
             pedido.MotivoCancelacion = dto.Motivo;
-            await _context.SaveChangesAsync();
-
-            return Ok(new { mensaje = "Pedido cancelado." });
+            await _db.SaveChangesAsync();
+            return Ok(new { mensaje = "Pedido cancelado" });
         }
     }
 
-    public record ItemCarritoDto(Guid ProductoId, int Cantidad);
-    public record CrearPedidoDto(List<ItemCarritoDto> Items, string MetodoPago, string? Telefono, string? DireccionEntrega, string? Notas);
-    public record CancelarPedidoDto(string? Motivo);
+    public class ItemPedidoDto { public Guid ProductoId { get; set; } public int Cantidad { get; set; } }
+    public class CrearPedidoDto
+    {
+        public List<ItemPedidoDto> Items { get; set; } = new();
+        public string? MetodoPago { get; set; }
+        public string? Telefono { get; set; }
+        public string? DireccionEntrega { get; set; }
+        public string? Notas { get; set; }
+    }
+    public class CancelarPedidoDto { public string? Motivo { get; set; } }
 }

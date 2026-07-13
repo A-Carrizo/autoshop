@@ -2,12 +2,14 @@ interface ConfirmModalProps {
     show: boolean
     titulo: string
     mensaje: string
-    onConfirmar: () => void
+    onConfirmar: () => void | Promise<void>
     onCancelar: () => void
     tipo?: 'danger' | 'warning'
+    textoConfirmar?: string
+    children?: React.ReactNode
 }
 
-export default function ConfirmModal({ show, titulo, mensaje, onConfirmar, onCancelar, tipo = 'danger' }: ConfirmModalProps) {
+export default function ConfirmModal({ show, titulo, mensaje, onConfirmar, onCancelar, tipo = 'danger', textoConfirmar, children }: ConfirmModalProps) {
     if (!show) return null
 
     const color = tipo === 'danger' ? 'var(--secondary)' : '#f6c23e'
@@ -25,7 +27,14 @@ export default function ConfirmModal({ show, titulo, mensaje, onConfirmar, onCan
 
                 {/* Texto */}
                 <h5 style={{ fontWeight: 700, marginBottom: '8px', color: 'var(--dark)' }}>{titulo}</h5>
-                <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginBottom: '24px' }}>{mensaje}</p>
+                <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginBottom: children ? '16px' : '24px' }}>{mensaje}</p>
+
+                {/* Contenido adicional opcional (ej. detalle de items a confirmar) */}
+                {children && (
+                    <div style={{ marginBottom: '24px', textAlign: 'left' }}>
+                        {children}
+                    </div>
+                )}
 
                 {/* Botones */}
                 <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
@@ -35,7 +44,7 @@ export default function ConfirmModal({ show, titulo, mensaje, onConfirmar, onCan
                     </button>
                     <button onClick={onConfirmar}
                         style={{ padding: '10px 24px', borderRadius: '8px', border: 'none', background: color, color: 'white', fontWeight: 600, cursor: 'pointer', fontSize: '14px' }}>
-                        {tipo === 'danger' ? 'Sí, eliminar' : 'Confirmar'}
+                        {textoConfirmar || (tipo === 'danger' ? 'Sí, eliminar' : 'Confirmar')}
                     </button>
                 </div>
             </div>

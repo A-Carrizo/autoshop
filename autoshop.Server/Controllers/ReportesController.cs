@@ -13,6 +13,9 @@ namespace autoshop.Server.Controllers
 
         private static DateTime ToUtc(DateTime dt) => DateTime.SpecifyKind(dt, DateTimeKind.Utc);
 
+        // Total de una venta descontando lo devuelto (requiere que v.Devoluciones esté incluido/cargado)
+        private static decimal TotalNeto(Models.Venta v) => v.Total - v.Devoluciones.Sum(d => d.MontoDevuelto);
+
         // GET: api/reportes/dashboard?desde=&hasta=
         [HttpGet("dashboard")]
         public async Task<IActionResult> GetDashboard(
@@ -33,23 +36,27 @@ namespace autoshop.Server.Controllers
             // Ventas del período filtrado
             var ventasPeriodo = await _context.Ventas
                 .Include(v => v.Detalles).ThenInclude(d => d.Producto)
+                .Include(v => v.Devoluciones)
                 .Where(v => v.Estado == "COMPLETADA" && v.Fecha >= desdeUtc && v.Fecha <= hastaUtc)
                 .ToListAsync();
 
             // Ventas del mes completo (para proyección)
             var ventasMes = await _context.Ventas
                 .Include(v => v.Detalles).ThenInclude(d => d.Producto)
+                .Include(v => v.Devoluciones)
                 .Where(v => v.Estado == "COMPLETADA" && v.Fecha >= inicioMes)
                 .ToListAsync();
 
             // Ventas de hoy
             var ventasHoy = await _context.Ventas
+                .Include(v => v.Devoluciones)
                 .Where(v => v.Estado == "COMPLETADA" && v.Fecha >= hoy)
                 .ToListAsync();
 
             // Ventas semana
             var inicioSemana = hoy.AddDays(-(int)hoy.DayOfWeek);
             var ventasSemana = await _context.Ventas
+                .Include(v => v.Devoluciones)
                 .Where(v => v.Estado == "COMPLETADA" && v.Fecha >= inicioSemana)
                 .ToListAsync();
 
@@ -93,8 +100,8 @@ namespace autoshop.Server.Controllers
             .Where(d => d.Tipo == "PRODUCTO" && d.Producto != null)
             .Sum(d => (d.PrecioUnitario - d.Producto!.PrecioCompra) * d.Cantidad * (1 - d.DescuentoPct / 100));
 
-            // Proyección mes
-            var totalMesActual = ventasMes.Sum(v => v.Total);
+            // Proyección mes (usando total neto: ventas menos devoluciones)
+            var totalMesActual = ventasMes.Sum(TotalNeto);
             var promedioDiario = diaActual > 0 ? totalMesActual / diaActual : 0;
             var proyeccionMes = promedioDiario * diasEnMes;
             var diasRestantes = diasEnMes - diaActual;
@@ -105,12 +112,12 @@ namespace autoshop.Server.Controllers
             var diaDelAnio = hoy.DayOfYear;
             var proyeccionRestoAnio = promedioDiario * (diasDelAnio - diaDelAnio);
 
-            // Tendencia (este mes vs mes anterior)
+            // Tendencia (este mes vs mes anterior) — también neto de devoluciones
             var inicioMesAnterior = inicioMes.AddMonths(-1);
             var finMesAnterior = inicioMes.AddTicks(-1);
             var totalMesAnterior = await _context.Ventas
                 .Where(v => v.Estado == "COMPLETADA" && v.Fecha >= inicioMesAnterior && v.Fecha <= finMesAnterior)
-                .SumAsync(v => v.Total);
+                .SumAsync(v => v.Total - v.Devoluciones.Sum(d => d.MontoDevuelto));
             var tendenciaPct = totalMesAnterior > 0
                 ? ((double)(totalMesActual - totalMesAnterior) / (double)totalMesAnterior) * 100
                 : 0;
@@ -154,18 +161,18 @@ namespace autoshop.Server.Controllers
 
             return Ok(new
             {
-                // Período filtrado
+                // Período filtrado (neto de devoluciones)
                 cantidadVentas = ventasPeriodo.Count,
-                totalVentas = ventasPeriodo.Sum(v => v.Total),
+                totalVentas = ventasPeriodo.Sum(TotalNeto),
                 totalDescuentos = ventasPeriodo.Sum(v => v.Descuento),
                 gananciaBruta = gananciaPeriodo,
-                ticketPromedio = ventasPeriodo.Count > 0 ? ventasPeriodo.Sum(v => v.Total) / ventasPeriodo.Count : 0,
+                ticketPromedio = ventasPeriodo.Count > 0 ? ventasPeriodo.Sum(TotalNeto) / ventasPeriodo.Count : 0,
 
-                // Resumen hoy/semana/mes (siempre fijo)
+                // Resumen hoy/semana/mes (siempre fijo, neto de devoluciones)
                 ventasHoy = ventasHoy.Count,
-                totalHoy = ventasHoy.Sum(v => v.Total),
+                totalHoy = ventasHoy.Sum(TotalNeto),
                 ventasSemana = ventasSemana.Count,
-                totalSemana = ventasSemana.Sum(v => v.Total),
+                totalSemana = ventasSemana.Sum(TotalNeto),
                 ventasMesCount = ventasMes.Count,
                 totalMes = totalMesActual,
 
@@ -197,9 +204,10 @@ namespace autoshop.Server.Controllers
         {
             var desde = DateTime.UtcNow.Date.AddDays(-dias);
             var ventas = await _context.Ventas
+                .Include(v => v.Devoluciones)
                 .Where(v => v.Estado == "COMPLETADA" && v.Fecha >= desde).ToListAsync();
             var porDia = ventas.GroupBy(v => v.Fecha.Date)
-                .Select(g => new { fecha = g.Key.ToString("yyyy-MM-dd"), cantidad = g.Count(), total = g.Sum(v => v.Total) })
+                .Select(g => new { fecha = g.Key.ToString("yyyy-MM-dd"), cantidad = g.Count(), total = g.Sum(TotalNeto) })
                 .OrderBy(x => x.fecha).ToList();
             var resultado = new List<object>();
             for (int i = dias; i >= 0; i--)

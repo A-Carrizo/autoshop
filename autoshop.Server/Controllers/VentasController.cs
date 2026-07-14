@@ -127,7 +127,10 @@ namespace autoshop.Server.Controllers
                 if (producto.Inventario == null || producto.Inventario.StockActual < item.Cantidad)
                     return BadRequest(new { mensaje = $"Stock insuficiente para '{producto.Nombre}'." });
 
-                var descPct = item.DescuentoPct > 0 ? item.DescuentoPct : producto.DescuentoPct;
+                // Se respeta el descuento tal cual lo envía el frontend por línea (incluyendo 0%).
+                // Antes, "0 > 0 == false" hacía que un descuento explícitamente quitado (0%)
+                // cayera igual al descuento por defecto del producto.
+                var descPct = item.DescuentoPct;
                 var subtotalItem = producto.PrecioVenta * item.Cantidad;
                 var descuentoItem = subtotalItem * (descPct / 100);
                 subtotal += subtotalItem;

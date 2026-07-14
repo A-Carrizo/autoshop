@@ -361,3 +361,9 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+
+
+
+# Imágenes de productos (se almacenan localmente)
+autoshop.Server/wwwroot/imagenes/productos/

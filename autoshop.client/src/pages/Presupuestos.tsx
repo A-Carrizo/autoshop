@@ -77,6 +77,10 @@ export default function Presupuestos() {
     const [tipoComprobanteConvertir, setTipoComprobanteConvertir] = useState<'TICKET' | 'FACTURA'>('TICKET')
     const [convirtiendo, setConvirtiendo] = useState(false)
 
+    // Modal eliminar
+    const [modalEliminar, setModalEliminar] = useState(false)
+    const [eliminando, setEliminando] = useState(false)
+
     const inputRef = useRef<HTMLInputElement>(null)
     const busquedaTimeout = useRef<ReturnType<typeof setTimeout>>()
 
@@ -263,13 +267,16 @@ export default function Presupuestos() {
     }
 
     const eliminarPresupuesto = async (id: string) => {
+        setEliminando(true)
         try {
             const res = await fetch(`${API.presupuestos}/${id}`, { method: 'DELETE' })
             const data = await res.json()
             if (!res.ok) { toast.error(data.mensaje || 'Error'); return }
             toast.success('Presupuesto eliminado')
+            setModalEliminar(false)
             setVista('lista'); cargarPresupuestos()
         } catch { toast.error('Error de conexión') }
+        finally { setEliminando(false) }
     }
 
     const fmtFecha = (f: string) => new Date(f).toLocaleDateString('es-PY', { day: '2-digit', month: '2-digit', year: 'numeric' })
@@ -328,7 +335,7 @@ export default function Presupuestos() {
                                     </div>
                                 )}
                                 {!p.ventaId && (
-                                    <button onClick={() => { if (window.confirm('¿Eliminar este presupuesto?')) eliminarPresupuesto(p.id) }}
+                                    <button onClick={() => setModalEliminar(true)}
                                         className="btn btn-sm mt-2" style={{ background: '#fff5f5', color: '#c53030', border: '1px solid #fed7d7', fontWeight: 600 }}>
                                         <i className="fas fa-trash mr-2"></i>Eliminar
                                     </button>
@@ -488,6 +495,16 @@ export default function Presupuestos() {
                         </div>
                     </div>
                 </ConfirmModal>
+
+                <ConfirmModal
+                    show={modalEliminar}
+                    titulo="Eliminar presupuesto"
+                    mensaje={`¿Estás seguro de eliminar el presupuesto ${p.numeroPresupuesto}? Esta acción no se puede deshacer.`}
+                    onConfirmar={() => eliminarPresupuesto(p.id)}
+                    onCancelar={() => setModalEliminar(false)}
+                    tipo="danger"
+                    textoConfirmar={eliminando ? 'Eliminando...' : 'Sí, eliminar'}
+                />
             </Layout>
         )
     }

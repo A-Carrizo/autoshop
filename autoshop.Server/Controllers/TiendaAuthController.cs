@@ -70,13 +70,9 @@ namespace autoshop.Server.Controllers
                 if (clienteExistente.TieneAccesoWeb)
                     return BadRequest(new { mensaje = "Ya existe una cuenta con ese email. Iniciá sesión." });
 
-                // Existe en el ERP sin acceso web
-                // Opcion A: activar ahora con contraseña elegida en el formulario
-                if (dto.ActivarAhora && !string.IsNullOrEmpty(dto.Password))
+                // Activar directamente con la contraseña ingresada
+                if (!string.IsNullOrEmpty(dto.Password) && dto.Password.Length >= 6)
                 {
-                    if (dto.Password.Length < 6)
-                        return BadRequest(new { mensaje = "La contraseña debe tener al menos 6 caracteres" });
-
                     var tokenActivacion = GenerarToken();
                     clienteExistente.TieneAccesoWeb = true;
                     clienteExistente.PasswordHash = Hashear(dto.Password);
@@ -87,7 +83,7 @@ namespace autoshop.Server.Controllers
                     return Ok(new { token = tokenActivacion, nombre = clienteExistente.Nombre, email = clienteExistente.Email });
                 }
 
-                // Opcion B: enviar email para crear contraseña
+                // Solo si no hay contraseña, enviar email
                 if (string.IsNullOrEmpty(clienteExistente.Email))
                     return BadRequest(new { mensaje = "No se puede activar la cuenta. Contactá con el vendedor." });
 

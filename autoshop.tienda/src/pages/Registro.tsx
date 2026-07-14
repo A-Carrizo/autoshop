@@ -54,7 +54,7 @@ export default function Registro() {
                 const resActivar = await fetch(`${API.auth}/registro`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ nombre: nombre.trim(), email: email.trim(), password, telefono: telefono.trim() || null, activarAhora: true })
+                    body: JSON.stringify({ nombre: nombre.trim(), email: email.trim(), password, telefono: telefono.trim() || null, activarAhora: false })
                 })
                 const dataActivar = await resActivar.json()
                 if (!resActivar.ok) {

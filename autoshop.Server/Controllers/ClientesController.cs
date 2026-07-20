@@ -67,47 +67,50 @@ namespace autoshop.Server.Controllers
         [HttpPost]
         public async Task<IActionResult> PostCliente(Cliente dto)
         {
-            // Si existe un cliente desactivado con el mismo email, reactivarlo
+            // Verificar duplicado de email contra CUALQUIER cliente (activo o inactivo).
+            // Antes solo se chequeaba contra inactivos, lo que permitía que un email
+            // ya usado por un cliente ACTIVO llegara sin control hasta el INSERT y
+            // reventara con un DbUpdateException por el índice único IX_Clientes_Email.
             if (!string.IsNullOrWhiteSpace(dto.Email))
             {
                 var emailLower = dto.Email.Trim().ToLower();
-                var desactivado = await _context.Clientes
-                    .FirstOrDefaultAsync(c => c.Email != null &&
-                        c.Email.ToLower() == emailLower && !c.Activo);
+                var existenteEmail = await _context.Clientes
+                    .FirstOrDefaultAsync(c => c.Email != null && c.Email.ToLower() == emailLower);
 
-                if (desactivado != null)
+                if (existenteEmail != null)
                 {
-                    desactivado.Activo = true;
-                    desactivado.Nombre = dto.Nombre;
-                    desactivado.Ruc = dto.Ruc;
-                    desactivado.Telefono = dto.Telefono;
-                    desactivado.Direccion = dto.Direccion;
-                    desactivado.Email = dto.Email.Trim();
-                    await _context.SaveChangesAsync();
-                    return Ok(desactivado);
+                    if (!existenteEmail.Activo)
+                        return Conflict(new
+                        {
+                            mensaje = $"Ya existe un cliente inactivo con el email '{dto.Email}'. ¿Deseas reactivarlo?",
+                            clienteInactivoId = existenteEmail.Id,
+                            clienteNombre = existenteEmail.Nombre,
+                            tipo = "CLIENTE_INACTIVO"
+                        });
+
+                    return Conflict(new
+                    {
+                        mensaje = $"Ya existe un cliente activo con el email '{dto.Email}': {existenteEmail.Nombre}.",
+                        tipo = "EMAIL_DUPLICADO"
+                    });
                 }
             }
 
-            // Si existe desactivado con mismo nombre y sin email, reactivarlo
-            if (string.IsNullOrWhiteSpace(dto.Email))
+            // Verificar duplicado de RUC/CI contra clientes activos.
+            if (!string.IsNullOrWhiteSpace(dto.Ruc))
             {
-                var desactivadoSinEmail = await _context.Clientes
-                    .FirstOrDefaultAsync(c => c.Nombre.ToLower() == dto.Nombre.Trim().ToLower()
-                        && string.IsNullOrWhiteSpace(c.Email) && !c.Activo);
+                var rucTrim = dto.Ruc.Trim();
+                var existenteRuc = await _context.Clientes
+                    .FirstOrDefaultAsync(c => c.Ruc != null && c.Ruc == rucTrim && c.Activo);
 
-                if (desactivadoSinEmail != null)
-                {
-                    desactivadoSinEmail.Activo = true;
-                    desactivadoSinEmail.Nombre = dto.Nombre;
-                    desactivadoSinEmail.Ruc = dto.Ruc;
-                    desactivadoSinEmail.Telefono = dto.Telefono;
-                    desactivadoSinEmail.Direccion = dto.Direccion;
-                    await _context.SaveChangesAsync();
-                    return Ok(desactivadoSinEmail);
-                }
+                if (existenteRuc != null)
+                    return Conflict(new
+                    {
+                        mensaje = $"Ya existe un cliente activo con el RUC/CI '{rucTrim}': {existenteRuc.Nombre}.",
+                        tipo = "RUC_DUPLICADO"
+                    });
             }
 
-            // Cliente nuevo
             var cliente = new Cliente
             {
                 Id = Guid.NewGuid(),
@@ -138,12 +141,34 @@ namespace autoshop.Server.Controllers
             return Ok(cliente);
         }
 
+        // PUT /api/clientes/:id/reactivar
+        [HttpPut("{id}/reactivar")]
+        public async Task<IActionResult> ReactivarCliente(Guid id, Cliente dto)
+        {
+            var cliente = await _context.Clientes.FindAsync(id);
+            if (cliente == null) return NotFound();
+            if (cliente.Activo) return BadRequest(new { mensaje = "El cliente ya está activo" });
+
+            cliente.Activo = true;
+            cliente.Nombre = dto.Nombre;
+            cliente.Ruc = dto.Ruc;
+            cliente.Telefono = dto.Telefono;
+            cliente.Direccion = dto.Direccion;
+            cliente.Email = dto.Email?.Trim();
+            await _context.SaveChangesAsync();
+            return Ok(cliente);
+        }
+
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteCliente(Guid id)
         {
             var cliente = await _context.Clientes.FindAsync(id);
             if (cliente == null) return NotFound();
             cliente.Activo = false;
+            // Revocar acceso web al desactivar
+            cliente.TieneAccesoWeb = false;
+            cliente.Token = null;
+            cliente.TokenExpira = null;
             await _context.SaveChangesAsync();
             return NoContent();
         }

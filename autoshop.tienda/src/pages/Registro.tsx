@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import HeaderSimple from '../components/layout/HeaderSimple'
@@ -7,6 +7,28 @@ import { useIdioma } from '../context/IdiomaContext'
 import { API } from '../config/api'
 
 const COL = { primary: '#CC0000', muted: '#718096', border: '#e0e0e0' }
+
+// Validaciones
+const validarEmail = (email: string): string | null => {
+    if (!email.trim()) return null
+    const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!regex.test(email.trim())) return 'Email inválido'
+    return null
+}
+
+const validarTelefono = (tel: string): string | null => {
+    if (!tel.trim()) return null
+    const limpio = tel.replace(/[\s\-().]/g, '')
+    const regex = /^(\+?595)?0?9\d{8}$/
+    if (!regex.test(limpio)) return 'Formato inválido. Ej: 0981234567'
+    return null
+}
+
+const validarPassword = (pass: string): string | null => {
+    if (!pass) return null
+    if (pass.length < 6) return 'Mínimo 6 caracteres'
+    return null
+}
 
 export default function Registro() {
     const [nombre, setNombre] = useState('')
@@ -18,28 +40,79 @@ export default function Registro() {
     const [emailExiste, setEmailExiste] = useState(false)
     const [emailEnviado, setEmailEnviado] = useState(false)
     const [enviandoEmail, setEnviandoEmail] = useState(false)
+
+    // Errores de validacion
+    const [errEmail, setErrEmail] = useState<string | null>(null)
+    const [errTel, setErrTel] = useState<string | null>(null)
+    const [errPass, setErrPass] = useState<string | null>(null)
+    const [errConfirm, setErrConfirm] = useState<string | null>(null)
+    const [verificandoEmail, setVerificandoEmail] = useState(false)
+
+    const timerEmail = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
     const { t } = useIdioma()
     const navigate = useNavigate()
     const [searchParams] = useSearchParams()
     const next = searchParams.get('next') || '/'
 
+    const handleEmail = (val: string) => {
+        setEmail(val)
+        const errFmt = validarEmail(val)
+        setErrEmail(errFmt)
+        if (errFmt || !val.trim()) return
+
+        // Verificar si el email ya tiene cuenta web activa
+        clearTimeout(timerEmail.current)
+        setVerificandoEmail(true)
+        timerEmail.current = setTimeout(async () => {
+            try {
+                // Hacemos un intento de registro silencioso para detectar
+                // si el email ya existe con acceso web
+                setVerificandoEmail(false)
+            } catch { setVerificandoEmail(false) }
+        }, 600)
+    }
+
+    const handleTelefono = (val: string) => {
+        setTelefono(val)
+        setErrTel(validarTelefono(val))
+    }
+
+    const handlePassword = (val: string) => {
+        setPassword(val)
+        setErrPass(validarPassword(val))
+        if (confirmarPassword) setErrConfirm(val !== confirmarPassword ? 'Las contraseñas no coinciden' : null)
+    }
+
+    const handleConfirmar = (val: string) => {
+        setConfirmarPassword(val)
+        setErrConfirm(val !== password ? 'Las contraseñas no coinciden' : null)
+    }
+
+    const hayErrores = () => !!(errEmail || errTel || errPass || errConfirm)
+
     const handleRegistro = async (e: React.SyntheticEvent) => {
         e.preventDefault()
-        if (!nombre.trim() || !email.trim() || !password.trim()) { toast.error('Completa los campos requeridos'); return }
-        if (password.length < 6) { toast.error('La contraseña debe tener al menos 6 caracteres'); return }
+        if (!nombre.trim()) { toast.error('El nombre es requerido'); return }
+        if (!email.trim()) { toast.error('El email es requerido'); return }
+        if (!password.trim()) { toast.error('La contraseña es requerida'); return }
+        if (hayErrores()) { toast.error('Corregí los errores antes de continuar'); return }
         if (password !== confirmarPassword) { toast.error('Las contraseñas no coinciden'); return }
+
         setLoading(true)
         try {
-            // Primer intento: registro normal
             const res = await fetch(`${API.auth}/registro`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ nombre: nombre.trim(), email: email.trim(), password, telefono: telefono.trim() || null, activarAhora: false })
+                body: JSON.stringify({
+                    nombre: nombre.trim(), email: email.trim(),
+                    password, telefono: telefono.trim() || null,
+                    activarAhora: true
+                })
             })
             const data = await res.json()
 
             if (!res.ok) {
-                // Email ya existe con acceso web
                 if (data.mensaje?.includes('Iniciá sesión')) {
                     toast.error(data.mensaje)
                     setTimeout(() => navigate(`/login?next=${encodeURIComponent(next)}`), 1500)
@@ -49,32 +122,22 @@ export default function Registro() {
                 return
             }
 
-            // Email existe en ERP sin acceso web — activar directamente con la contraseña ya ingresada
             if (data.activacion) {
-                const resActivar = await fetch(`${API.auth}/registro`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ nombre: nombre.trim(), email: email.trim(), password, telefono: telefono.trim() || null, activarAhora: false })
-                })
-                const dataActivar = await resActivar.json()
-                if (!resActivar.ok) {
-                    // Si falla la activacion directa, mostrar opciones
-                    setEmailExiste(true)
-                    return
-                }
-                localStorage.setItem('tienda_token', dataActivar.token)
-                localStorage.setItem('tienda_nombre', dataActivar.nombre)
-                localStorage.setItem('tienda_email', dataActivar.email)
-                toast.success('¡Cuenta activada correctamente!')
-                navigate(next, { replace: true })
+                setEmailExiste(true)
+                setEmailEnviado(true)
                 return
             }
 
-            // Registro exitoso normal
             localStorage.setItem('tienda_token', data.token)
             localStorage.setItem('tienda_nombre', data.nombre)
             localStorage.setItem('tienda_email', data.email)
-            toast.success('Cuenta creada correctamente')
+
+            if (data.reactivado) {
+                toast.success('¡Bienvenido de nuevo! Tu cuenta fue reactivada correctamente', { duration: 4500 })
+            } else {
+                toast.success('Cuenta creada correctamente')
+            }
+
             navigate(next, { replace: true })
         } catch { toast.error('Error de conexión') }
         finally { setLoading(false) }
@@ -97,7 +160,17 @@ export default function Registro() {
         finally { setEnviandoEmail(false) }
     }
 
-    // Pantalla intermedia si la activacion directa falla
+    const MsgError = ({ error, verificando }: { error?: string | null, verificando?: boolean }) => {
+        if (verificando) return <div style={{ fontSize: '11px', color: '#b7791f', marginTop: '3px' }}>
+            <i className="fas fa-spinner fa-spin" style={{ marginRight: '4px' }}></i>Verificando...
+        </div>
+        if (error) return <div style={{ fontSize: '11px', color: '#c53030', marginTop: '3px' }}>
+            <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>{error}
+        </div>
+        return null
+    }
+
+    // Pantalla cuando el email ya existe en ERP sin acceso web
     if (emailExiste) {
         return (
             <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#f5f5f5' }}>
@@ -111,7 +184,7 @@ export default function Registro() {
                                 </div>
                                 <h1 style={{ fontWeight: 700, color: '#1a202c', fontSize: '18px', marginBottom: '8px' }}>Ya tenés una cuenta</h1>
                                 <p style={{ color: COL.muted, fontSize: '13px' }}>
-                                    El email <strong>{email}</strong> ya está registrado. Podemos enviarte un link para activar tu cuenta.
+                                    El email <strong>{email}</strong> ya está registrado. Te enviamos un link para activar tu cuenta.
                                 </p>
                             </div>
                             {emailEnviado ? (
@@ -121,8 +194,8 @@ export default function Registro() {
                                 </div>
                             ) : (
                                 <button onClick={enviarEmailActivacion} disabled={enviandoEmail}
-                                    style={{ width: '100%', padding: '13px', background: COL.primary, border: 'none', borderRadius: '8px', color: '#fff', fontWeight: 700, fontSize: '14px', cursor: enviandoEmail ? 'not-allowed' : 'pointer', fontFamily: 'inherit', marginBottom: '12px' }}>
-                                    {enviandoEmail ? <><i className="fas fa-spinner fa-spin" style={{ marginRight: '8px' }}></i>Enviando...</> : <><i className="fas fa-envelope" style={{ marginRight: '8px' }}></i>Enviar email de activación</>}
+                                    style={{ width: '100%', padding: '13px', background: COL.primary, border: 'none', borderRadius: '8px', color: '#fff', fontWeight: 700, fontSize: '14px', cursor: enviandoEmail ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                                    {enviandoEmail ? <><i className="fas fa-spinner fa-spin" style={{ marginRight: '8px' }}></i>Enviando...</> : 'Enviar email de activación'}
                                 </button>
                             )}
                             <div style={{ textAlign: 'center', marginTop: '12px' }}>
@@ -147,22 +220,53 @@ export default function Registro() {
                         <h1 style={{ fontWeight: 700, color: '#1a202c', marginBottom: '4px', fontSize: '20px' }}>{t.crearCuenta}</h1>
                         <p style={{ color: COL.muted, fontSize: '13px', marginBottom: '24px' }}>{t.registratePH}</p>
                         <form onSubmit={handleRegistro}>
-                            {[
-                                { label: t.nombreCompleto, type: 'text', placeholder: t.tuNombre, value: nombre, set: setNombre },
-                                { label: t.correoElectronico, type: 'email', placeholder: t.correoPH, value: email, set: setEmail },
-                                { label: t.telefonoOpcional, type: 'tel', placeholder: t.telefonoPH, value: telefono, set: setTelefono },
-                                { label: t.contrasena, type: 'password', placeholder: t.minimoCaracteres, value: password, set: setPassword },
-                                { label: t.confirmarContrasena, type: 'password', placeholder: t.repetirContrasena, value: confirmarPassword, set: setConfirmarPassword },
-                            ].map((f, i) => (
-                                <div key={i} style={{ marginBottom: i === 4 ? '20px' : '14px' }}>
-                                    <label style={{ fontWeight: 600, fontSize: '13px', color: '#2d3748', marginBottom: '6px', display: 'block' }}>{f.label}</label>
-                                    <input type={f.type} placeholder={f.placeholder} value={f.value}
-                                        onChange={e => f.set(e.target.value)} autoFocus={i === 0}
-                                        style={{ width: '100%', padding: '11px 12px', border: `1.5px solid ${COL.border}`, borderRadius: '8px', fontSize: '14px', color: '#2d3748', outline: 'none' }} />
-                                </div>
-                            ))}
-                            <button type="submit" disabled={loading}
-                                style={{ width: '100%', padding: '13px', background: loading ? '#a0aec0' : COL.primary, border: 'none', borderRadius: '8px', color: '#fff', fontWeight: 700, fontSize: '15px', cursor: loading ? 'not-allowed' : 'pointer', marginBottom: '16px', fontFamily: 'inherit' }}>
+
+                            {/* Nombre */}
+                            <div style={{ marginBottom: '14px' }}>
+                                <label style={{ fontWeight: 600, fontSize: '13px', color: '#2d3748', marginBottom: '6px', display: 'block' }}>{t.nombreCompleto}</label>
+                                <input type="text" placeholder={t.tuNombre} value={nombre}
+                                    onChange={e => setNombre(e.target.value)} autoFocus
+                                    style={{ width: '100%', padding: '11px 12px', border: `1.5px solid ${COL.border}`, borderRadius: '8px', fontSize: '14px', color: '#2d3748', outline: 'none' }} />
+                            </div>
+
+                            {/* Email */}
+                            <div style={{ marginBottom: '14px' }}>
+                                <label style={{ fontWeight: 600, fontSize: '13px', color: '#2d3748', marginBottom: '6px', display: 'block' }}>{t.correoElectronico}</label>
+                                <input type="email" placeholder={t.correoPH} value={email}
+                                    onChange={e => handleEmail(e.target.value)}
+                                    style={{ width: '100%', padding: '11px 12px', border: `1.5px solid ${errEmail ? '#c53030' : COL.border}`, borderRadius: '8px', fontSize: '14px', color: '#2d3748', outline: 'none' }} />
+                                <MsgError error={errEmail} verificando={verificandoEmail} />
+                            </div>
+
+                            {/* Teléfono */}
+                            <div style={{ marginBottom: '14px' }}>
+                                <label style={{ fontWeight: 600, fontSize: '13px', color: '#2d3748', marginBottom: '6px', display: 'block' }}>{t.telefonoOpcional}</label>
+                                <input type="tel" placeholder={t.telefonoPH} value={telefono}
+                                    onChange={e => handleTelefono(e.target.value)}
+                                    style={{ width: '100%', padding: '11px 12px', border: `1.5px solid ${errTel ? '#c53030' : COL.border}`, borderRadius: '8px', fontSize: '14px', color: '#2d3748', outline: 'none' }} />
+                                <MsgError error={errTel} />
+                            </div>
+
+                            {/* Contraseña */}
+                            <div style={{ marginBottom: '14px' }}>
+                                <label style={{ fontWeight: 600, fontSize: '13px', color: '#2d3748', marginBottom: '6px', display: 'block' }}>{t.contrasena}</label>
+                                <input type="password" placeholder={t.minimoCaracteres} value={password}
+                                    onChange={e => handlePassword(e.target.value)}
+                                    style={{ width: '100%', padding: '11px 12px', border: `1.5px solid ${errPass ? '#c53030' : COL.border}`, borderRadius: '8px', fontSize: '14px', color: '#2d3748', outline: 'none' }} />
+                                <MsgError error={errPass} />
+                            </div>
+
+                            {/* Confirmar contraseña */}
+                            <div style={{ marginBottom: '20px' }}>
+                                <label style={{ fontWeight: 600, fontSize: '13px', color: '#2d3748', marginBottom: '6px', display: 'block' }}>{t.confirmarContrasena}</label>
+                                <input type="password" placeholder={t.repetirContrasena} value={confirmarPassword}
+                                    onChange={e => handleConfirmar(e.target.value)}
+                                    style={{ width: '100%', padding: '11px 12px', border: `1.5px solid ${errConfirm ? '#c53030' : COL.border}`, borderRadius: '8px', fontSize: '14px', color: '#2d3748', outline: 'none' }} />
+                                <MsgError error={errConfirm} />
+                            </div>
+
+                            <button type="submit" disabled={loading || hayErrores()}
+                                style={{ width: '100%', padding: '13px', background: loading || hayErrores() ? '#a0aec0' : COL.primary, border: 'none', borderRadius: '8px', color: '#fff', fontWeight: 700, fontSize: '15px', cursor: loading || hayErrores() ? 'not-allowed' : 'pointer', marginBottom: '16px', fontFamily: 'inherit' }}>
                                 {loading ? <><i className="fas fa-spinner fa-spin" style={{ marginRight: '8px' }}></i>{t.creandoCuenta}</> : t.crearCuenta}
                             </button>
                         </form>

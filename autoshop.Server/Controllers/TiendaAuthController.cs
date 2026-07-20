@@ -16,11 +16,13 @@ namespace autoshop.Server.Controllers
     {
         private readonly AppDbContext _db;
         private readonly IConfiguration _config;
+        private readonly ILogger<TiendaAuthController> _logger;
 
-        public TiendaAuthController(AppDbContext db, IConfiguration config)
+        public TiendaAuthController(AppDbContext db, IConfiguration config, ILogger<TiendaAuthController> logger)
         {
             _db = db;
             _config = config;
+            _logger = logger;
         }
 
         private static string Hashear(string texto)
@@ -74,13 +76,30 @@ namespace autoshop.Server.Controllers
                 if (!string.IsNullOrEmpty(dto.Password) && dto.Password.Length >= 6)
                 {
                     var tokenActivacion = GenerarToken();
+
+                    // Si el cliente estaba inactivo (eliminado en el ERP), se reactiva
+                    // automáticamente al crear su cuenta web. Queda registrado el momento
+                    // exacto para poder avisar en el ERP que no fue una reactivación manual.
+                    var reactivado = !clienteExistente.Activo;
+                    if (reactivado)
+                    {
+                        clienteExistente.Activo = true;
+                        clienteExistente.FechaReactivacionAuto = DateTime.UtcNow;
+                    }
+
                     clienteExistente.TieneAccesoWeb = true;
                     clienteExistente.PasswordHash = Hashear(dto.Password);
                     clienteExistente.Token = tokenActivacion;
                     clienteExistente.TokenExpira = DateTime.UtcNow.AddDays(30);
                     await _db.SaveChangesAsync();
 
-                    return Ok(new { token = tokenActivacion, nombre = clienteExistente.Nombre, email = clienteExistente.Email });
+                    return Ok(new
+                    {
+                        token = tokenActivacion,
+                        nombre = clienteExistente.Nombre,
+                        email = clienteExistente.Email,
+                        reactivado
+                    });
                 }
 
                 // Solo si no hay contraseña, enviar email
@@ -126,7 +145,10 @@ namespace autoshop.Server.Controllers
                     await smtp.SendAsync(mensaje);
                     await smtp.DisconnectAsync(true);
                 }
-                catch { /* Email falla silenciosamente */ }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error al enviar email de activación a {Email}", clienteExistente.Email);
+                }
 
                 return Ok(new { mensaje = "Te enviamos un correo para que establezcas tu contraseña.", activacion = true });
             }
@@ -230,7 +252,7 @@ namespace autoshop.Server.Controllers
 
             var emailLower = dto.Email.Trim().ToLower();
             var cliente = await _db.Clientes.FirstOrDefaultAsync(c =>
-                c.Email != null && c.Email.ToLower() == emailLower && c.TieneAccesoWeb);
+                c.Email != null && c.Email.ToLower() == emailLower && c.Activo);
 
             if (cliente == null)
                 return Ok(new { mensaje = "Si el email existe, recibirás las instrucciones" });
@@ -275,7 +297,10 @@ namespace autoshop.Server.Controllers
                 await smtp.SendAsync(mensaje);
                 await smtp.DisconnectAsync(true);
             }
-            catch { /* Email falla silenciosamente */ }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error al enviar email de recuperación a {Email}", cliente.Email);
+            }
 
             return Ok(new { mensaje = "Si el email existe, recibirás las instrucciones" });
         }
@@ -298,14 +323,24 @@ namespace autoshop.Server.Controllers
             if (cliente == null)
                 return BadRequest(new { mensaje = "Token inválido o expirado" });
 
+            // Mismo criterio que en el registro: si el cliente estaba inactivo,
+            // se reactiva automáticamente y queda registrada la fecha para avisar en el ERP.
+            var reactivado = !cliente.Activo;
+            if (reactivado)
+            {
+                cliente.Activo = true;
+                cliente.FechaReactivacionAuto = DateTime.UtcNow;
+            }
+
             cliente.PasswordHash = Hashear(dto.NuevaPassword);
+            cliente.TieneAccesoWeb = true;  // activar acceso web al resetear
             cliente.TokenReset = null;
             cliente.TokenResetExpira = null;
             cliente.Token = null;
             cliente.TokenExpira = null;
             await _db.SaveChangesAsync();
 
-            return Ok(new { mensaje = "Contraseña restablecida correctamente" });
+            return Ok(new { mensaje = "Contraseña restablecida correctamente", reactivado });
         }
     }
 

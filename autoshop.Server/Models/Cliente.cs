@@ -19,6 +19,11 @@
         public string? TokenReset { get; set; }
         public DateTime? TokenResetExpira { get; set; }
 
+        // Se completa cuando un cliente inactivo (eliminado en el ERP) se reactiva
+        // automáticamente al registrarse/activar su cuenta desde la tienda online.
+        // Sirve para avisar en el ERP que la reactivación no fue manual.
+        public DateTime? FechaReactivacionAuto { get; set; }
+
         // Pedidos online
         public ICollection<Pedido> Pedidos { get; set; } = new List<Pedido>();
     }

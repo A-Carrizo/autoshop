@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import toast from 'react-hot-toast'
 import Layout from '../components/layout/Layout'
 import ConfirmModal from '../components/ui/ConfirmModal'
@@ -7,290 +7,472 @@ import { API } from '../config/api'
 interface Cliente {
     id: string
     nombre: string
-    ruc?: string
-    telefono?: string
-    direccion?: string
-    email?: string
+    ruc: string | null
+    telefono: string | null
+    direccion: string | null
+    email: string | null
     activo: boolean
     fechaCreacion: string
+    tieneAccesoWeb: boolean
+    fechaReactivacionAuto: string | null
 }
 
-interface PaginatedResult {
-    datos: Cliente[]
-    total: number
-    pagina: number
-    tamano: number
-    totalPaginas: number
+interface Errores {
+    nombre?: string
+    ruc?: string
+    telefono?: string
+    email?: string
 }
 
-interface ClienteForm {
-    nombre: string
-    ruc: string
-    telefono: string
-    direccion: string
-    email: string
+interface DatosReactivar {
+    mensaje: string
+    clienteInactivoId: string
+    body: {
+        nombre: string
+        ruc: string | null
+        telefono: string | null
+        direccion: string | null
+        email: string | null
+    }
 }
 
-const formVacio: ClienteForm = { nombre: '', ruc: '', telefono: '', direccion: '', email: '' }
+// ── Validaciones de formato ───────────────────────────────────────────────────
+const validarRuc = (ruc: string): string | null => {
+    if (!ruc.trim()) return null
+    const rucRegex = /^\d{6,8}-\d{1}$/
+    const ciRegex = /^\d{6,8}$/
+    if (!rucRegex.test(ruc.trim()) && !ciRegex.test(ruc.trim()))
+        return 'Formato inválido. Ej: 1234567-8 (RUC) o 1234567 (CI)'
+    return null
+}
+
+const validarTelefono = (tel: string): string | null => {
+    if (!tel.trim()) return null
+    const limpio = tel.replace(/[\s\-().]/g, '')
+    const telRegex = /^(\+?595)?0?9\d{8}$/
+    if (!telRegex.test(limpio)) return 'Formato inválido. Ej: 0981234567'
+    return null
+}
+
+const validarEmail = (email: string): string | null => {
+    if (!email.trim()) return null
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email.trim())) return 'Email inválido'
+    return null
+}
+
+const fmtFechaHora = (f: string) => new Date(f).toLocaleString('es-PY', {
+    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+})
 
 export default function Clientes() {
-    const [result, setResult] = useState<PaginatedResult>({ datos: [], total: 0, pagina: 1, tamano: 25, totalPaginas: 0 })
-    const [loading, setLoading] = useState(true)
-    const [pagina, setPagina] = useState(1)
+    const [clientes, setClientes] = useState<Cliente[]>([])
+    const [cargando, setCargando] = useState(true)
     const [busqueda, setBusqueda] = useState('')
-    const [showModal, setShowModal] = useState(false)
+    const [mostrarModal, setMostrarModal] = useState(false)
     const [editando, setEditando] = useState<Cliente | null>(null)
-    const [form, setForm] = useState<ClienteForm>(formVacio)
+    const [confirmEliminar, setConfirmEliminar] = useState<Cliente | null>(null)
     const [guardando, setGuardando] = useState(false)
-    const [confirmModal, setConfirmModal] = useState<{ show: boolean, id: string, nombre: string }>({ show: false, id: '', nombre: '' })
+    const [pagina, setPagina] = useState(1)
+    const [totalPaginas, setTotalPaginas] = useState(1)
 
-    const cargarClientes = async (pag = pagina, busq = busqueda) => {
+    // Campos
+    const [nombre, setNombre] = useState('')
+    const [ruc, setRuc] = useState('')
+    const [telefono, setTelefono] = useState('')
+    const [direccion, setDireccion] = useState('')
+    const [email, setEmail] = useState('')
+
+    // Validaciones
+    const [errores, setErrores] = useState<Errores>({})
+    const [verificando, setVerificando] = useState<Record<string, boolean>>({})
+
+    // Reactivar cliente inactivo
+    const [modalReactivar, setModalReactivar] = useState<DatosReactivar | null>(null)
+    const [reactivando, setReactivando] = useState(false)
+
+    const timerNombre = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+    const timerRuc = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+    const timerTel = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+    const timerEmail = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+    const cargar = useCallback(async () => {
+        setCargando(true)
         try {
-            setLoading(true)
-            const params = new URLSearchParams({ pagina: pag.toString(), tamano: '25' })
-            if (busq) params.append('busqueda', busq)
+            const params = new URLSearchParams({ pagina: String(pagina), tamano: '25' })
+            if (busqueda) params.set('busqueda', busqueda)
             const res = await fetch(`${API.clientes}?${params}`)
             const data = await res.json()
-            setResult(data)
-        } catch { toast.error('No se pudo conectar con el servidor') }
-        finally { setLoading(false) }
+            setClientes(data.datos || [])
+            setTotalPaginas(data.totalPaginas || 1)
+        } catch { toast.error('Error al cargar clientes') }
+        finally { setCargando(false) }
+    }, [busqueda, pagina])
+
+    useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        cargar()
+    }, [cargar])
+
+    const abrirNuevo = () => {
+        setEditando(null)
+        setNombre(''); setRuc(''); setTelefono(''); setDireccion(''); setEmail('')
+        setErrores({}); setVerificando({})
+        setMostrarModal(true)
     }
 
-    useEffect(() => { cargarClientes() }, [])
-
-    const handleBusqueda = (valor: string) => {
-        setBusqueda(valor); setPagina(1); cargarClientes(1, valor)
+    const abrirEditar = (c: Cliente) => {
+        setEditando(c)
+        setNombre(c.nombre); setRuc(c.ruc || ''); setTelefono(c.telefono || '')
+        setDireccion(c.direccion || ''); setEmail(c.email || '')
+        setErrores({}); setVerificando({})
+        setMostrarModal(true)
     }
 
-    const handlePagina = (nueva: number) => {
-        setPagina(nueva); cargarClientes(nueva, busqueda)
-    }
-
-    const abrirModal = (cliente?: Cliente) => {
-        if (cliente) {
-            setEditando(cliente)
-            setForm({
-                nombre: cliente.nombre,
-                ruc: cliente.ruc || '',
-                telefono: cliente.telefono || '',
-                direccion: cliente.direccion || '',
-                email: cliente.email || ''
-            })
-        } else {
-            setEditando(null)
-            setForm(formVacio)
+    // Verificar duplicado en servidor
+    const verificarDup = useCallback(async (campo: string, valor: string, comparar: (c: Cliente) => boolean) => {
+        if (!valor.trim()) return
+        setVerificando(v => ({ ...v, [campo]: true }))
+        try {
+            const res = await fetch(`${API.clientes}?busqueda=${encodeURIComponent(valor)}&tamano=50`)
+            const data = await res.json()
+            const dup = (data.datos || []).find((c: Cliente) =>
+                (editando ? c.id !== editando.id : true) && comparar(c)
+            )
+            if (dup) setErrores(e => ({ ...e, [campo]: `Ya registrado para: ${dup.nombre}` }))
+            else setErrores(e => ({ ...e, [campo]: undefined }))
+        } catch {
+            // Si falla la verificación de duplicados, no bloqueamos al usuario;
+            // la validación definitiva la hace el backend al guardar.
         }
-        setShowModal(true)
+        finally { setVerificando(v => ({ ...v, [campo]: false })) }
+    }, [editando])
+
+    const handleNombre = (val: string) => {
+        setNombre(val)
+        setErrores(e => ({ ...e, nombre: undefined }))
+        clearTimeout(timerNombre.current)
+        if (val.trim().length > 2)
+            timerNombre.current = setTimeout(() =>
+                verificarDup('nombre', val, c => c.nombre.toLowerCase() === val.toLowerCase())
+                , 600)
     }
 
-    const cerrarModal = () => {
-        setShowModal(false); setEditando(null); setForm(formVacio)
-    }
-
-    const validar = (): boolean => {
-        if (!form.nombre.trim()) { toast.error('El nombre es obligatorio'); return false }
-        if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
-            toast.error('El email no tiene un formato válido'); return false
+    const handleRuc = (val: string) => {
+        setRuc(val)
+        const err = validarRuc(val)
+        setErrores(e => ({ ...e, ruc: err || undefined }))
+        if (!err && val.trim()) {
+            clearTimeout(timerRuc.current)
+            timerRuc.current = setTimeout(() =>
+                verificarDup('ruc', val, c => c.ruc?.toLowerCase() === val.toLowerCase())
+                , 600)
         }
-        return true
     }
+
+    const handleTelefono = (val: string) => {
+        setTelefono(val)
+        const err = validarTelefono(val)
+        setErrores(e => ({ ...e, telefono: err || undefined }))
+        if (!err && val.trim()) {
+            clearTimeout(timerTel.current)
+            timerTel.current = setTimeout(() =>
+                verificarDup('telefono', val, c => c.telefono?.replace(/[\s\-().]/g, '') === val.replace(/[\s\-().]/g, ''))
+                , 600)
+        }
+    }
+
+    const handleEmail = (val: string) => {
+        setEmail(val)
+        const err = validarEmail(val)
+        setErrores(e => ({ ...e, email: err || undefined }))
+        if (!err && val.trim()) {
+            clearTimeout(timerEmail.current)
+            timerEmail.current = setTimeout(() =>
+                verificarDup('email', val, c => c.email?.toLowerCase() === val.toLowerCase())
+                , 600)
+        }
+    }
+
+    const hayErrores = () => Object.values(errores).some(Boolean)
 
     const guardar = async () => {
-        if (!validar()) return
+        if (!nombre.trim()) { toast.error('El nombre es requerido'); return }
+        if (hayErrores()) { toast.error('Corregí los errores antes de guardar'); return }
         setGuardando(true)
         try {
             const body = {
-                nombre: form.nombre.trim(),
-                ruc: form.ruc.trim() || null,
-                telefono: form.telefono.trim() || null,
-                direccion: form.direccion.trim() || null,
-                email: form.email.trim() || null
+                nombre: nombre.trim(), ruc: ruc.trim() || null,
+                telefono: telefono.trim() || null, direccion: direccion.trim() || null,
+                email: email.trim() || null
             }
             const url = editando ? `${API.clientes}/${editando.id}` : API.clientes
             const method = editando ? 'PUT' : 'POST'
             const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-            if (!res.ok) { const err = await res.json(); toast.error(err.mensaje || 'Error al guardar'); return }
-            toast.success(editando ? 'Cliente actualizado' : 'Cliente registrado correctamente')
-            await cargarClientes()
-            cerrarModal()
-        } catch { toast.error('Error inesperado') }
+            const data = await res.json()
+
+            if (res.status === 409 && data.tipo === 'CLIENTE_INACTIVO') {
+                setModalReactivar({ mensaje: data.mensaje, clienteInactivoId: data.clienteInactivoId, body })
+                return
+            }
+
+            if (!res.ok) { toast.error(data.mensaje || 'Error al guardar'); return }
+            toast.success(editando ? 'Cliente actualizado' : 'Cliente creado')
+            setMostrarModal(false); cargar()
+        } catch { toast.error('Error de conexión') }
         finally { setGuardando(false) }
     }
 
-    const eliminar = async () => {
+    const confirmarReactivar = async () => {
+        if (!modalReactivar) return
+        setReactivando(true)
         try {
-            const res = await fetch(`${API.clientes}/${confirmModal.id}`, { method: 'DELETE' })
-            if (!res.ok) { toast.error('Error al eliminar'); return }
-            setConfirmModal({ show: false, id: '', nombre: '' })
-            await cargarClientes()
+            const resReac = await fetch(`${API.clientes}/${modalReactivar.clienteInactivoId}/reactivar`, {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(modalReactivar.body)
+            })
+            if (!resReac.ok) { toast.error('Error al reactivar'); return }
+            toast.success('Cliente reactivado correctamente')
+            setModalReactivar(null)
+            setMostrarModal(false); cargar()
+        } catch { toast.error('Error de conexión') }
+        finally { setReactivando(false) }
+    }
+
+    const eliminar = async () => {
+        if (!confirmEliminar) return
+        try {
+            await fetch(`${API.clientes}/${confirmEliminar.id}`, { method: 'DELETE' })
             toast.success('Cliente eliminado')
+            setConfirmEliminar(null); cargar()
         } catch { toast.error('Error al eliminar') }
+    }
+
+    // Componente de mensaje de validacion
+    const MsgCampo = ({ error, cargando: c }: { error?: string, cargando?: boolean }) => {
+        if (c) return <div style={{ fontSize: '11px', color: '#b7791f', marginTop: '3px' }}>
+            <i className="fas fa-spinner fa-spin" style={{ marginRight: '4px' }}></i>Verificando...
+        </div>
+        if (error) return <div style={{ fontSize: '11px', color: '#c53030', marginTop: '3px' }}>
+            <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>{error}
+        </div>
+        return null
+    }
+
+    const inputStyle = (campo: string): React.CSSProperties => ({
+        borderColor: errores[campo as keyof Errores] ? '#c53030' : verificando[campo] ? '#d69e2e' : undefined
+    })
+
+    const thStyle: React.CSSProperties = {
+        background: 'var(--dark)', color: 'white',
+        padding: '10px 16px', fontWeight: 600, fontSize: '13px', textAlign: 'left'
     }
 
     return (
         <Layout titulo="Clientes">
-
-            {/* Header */}
+            {/* Barra superior */}
             <div className="d-flex justify-content-between align-items-center mb-4">
-                <div>
-                    <h5 style={{ fontWeight: 700, margin: 0 }}>Clientes</h5>
-                    <small style={{ color: 'var(--text-muted)' }}>{result.total} clientes registrados</small>
+                <div className="input-group" style={{ maxWidth: '320px' }}>
+                    <span className="input-group-text" style={{ background: 'var(--primary)', color: 'white', border: 'none' }}>
+                        <i className="fas fa-search"></i>
+                    </span>
+                    <input type="text" className="form-control" placeholder="Buscar por nombre, RUC o teléfono..."
+                        value={busqueda} onChange={e => { setBusqueda(e.target.value); setPagina(1) }} />
                 </div>
-                <div className="d-flex align-items-center gap-2">
-                    <div className="input-group" style={{ width: '280px' }}>
-                        <span className="input-group-text" style={{ background: 'var(--primary-light)', border: '1px solid var(--primary)', color: 'var(--primary)' }}>
-                            <i className="fas fa-search"></i>
-                        </span>
-                        <input type="text" className="form-control" placeholder="Buscar por nombre, RUC o teléfono..."
-                            value={busqueda} onChange={e => handleBusqueda(e.target.value)} />
-                    </div>
-                    <button className="btn btn-primary btn-sm" onClick={() => abrirModal()} style={{ padding: '8px 16px', whiteSpace: 'nowrap' }}>
-                        <i className="fas fa-plus mr-1"></i> Nuevo cliente
-                    </button>
-                </div>
+                <button className="btn btn-primary" onClick={abrirNuevo}>
+                    <i className="fas fa-plus mr-2"></i>Nuevo cliente
+                </button>
             </div>
 
             {/* Tabla */}
             <div className="card">
-                <div className="card-header d-flex justify-content-between align-items-center">
-                    <span><i className="fas fa-users mr-2" style={{ color: 'var(--primary)' }}></i>Clientes</span>
-                    <small style={{ color: 'var(--text-muted)' }}>Mostrando {result.datos.length} de {result.total}</small>
-                </div>
-                <div className="card-body p-0">
-                    <div className="table-responsive">
-                        <table className="table table-bordered mb-0">
-                            <thead>
-                                <tr>
-                                    <th>Nombre</th>
-                                    <th>RUC</th>
-                                    <th>Teléfono</th>
-                                    <th>Email</th>
-                                    <th>Dirección</th>
-                                    <th style={{ width: '100px' }}>Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {loading ? (
-                                    <tr><td colSpan={6} className="text-center py-4">
-                                        <i className="fas fa-spinner fa-spin mr-2" style={{ color: 'var(--primary)' }}></i>Cargando...
-                                    </td></tr>
-                                ) : result.datos.length === 0 ? (
-                                    <tr><td colSpan={6} className="text-center py-4" style={{ color: 'var(--text-muted)' }}>
-                                        No hay clientes. ¡Registrá el primero!
-                                    </td></tr>
-                                ) : result.datos.map(c => (
-                                    <tr key={c.id}>
-                                        <td style={{ fontWeight: 600 }}>{c.nombre}</td>
-                                        <td><span style={{ fontFamily: 'monospace', fontSize: '12px' }}>{c.ruc || '—'}</span></td>
-                                        <td>{c.telefono || '—'}</td>
-                                        <td style={{ fontSize: '13px' }}>{c.email || '—'}</td>
-                                        <td style={{ fontSize: '13px', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.direccion || '—'}</td>
-                                        <td>
-                                            <div style={{ display: 'flex', gap: '6px' }}>
-                                                <button className="btn btn-sm btn-primary" onClick={() => abrirModal(c)} style={{ padding: '5px 10px' }}>
-                                                    <i className="fas fa-edit"></i>
-                                                </button>
-                                                <button className="btn btn-sm" onClick={() => setConfirmModal({ show: true, id: c.id, nombre: c.nombre })}
-                                                    style={{ background: 'var(--secondary)', border: 'none', color: 'white', padding: '5px 10px' }}>
-                                                    <i className="fas fa-trash"></i>
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                {cargando ? (
+                    <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>
+                        <i className="fas fa-spinner fa-spin fa-2x"></i>
                     </div>
-
-                    {/* Paginación */}
-                    {result.totalPaginas > 1 && (
-                        <div className="d-flex justify-content-between align-items-center px-3 py-3" style={{ borderTop: '1px solid var(--border)' }}>
-                            <small style={{ color: 'var(--text-muted)' }}>Página {result.pagina} de {result.totalPaginas}</small>
-                            <div style={{ display: 'flex', gap: '6px' }}>
-                                <button className="btn btn-sm" onClick={() => handlePagina(1)} disabled={pagina === 1}
-                                    style={{ background: 'var(--primary-light)', border: '1px solid var(--primary)', color: 'var(--primary-dark)', padding: '4px 10px' }}>«</button>
-                                <button className="btn btn-sm" onClick={() => handlePagina(pagina - 1)} disabled={pagina === 1}
-                                    style={{ background: 'var(--primary-light)', border: '1px solid var(--primary)', color: 'var(--primary-dark)', padding: '4px 10px' }}>‹</button>
-                                {Array.from({ length: result.totalPaginas }, (_, i) => i + 1)
-                                    .filter(p => p >= pagina - 2 && p <= pagina + 2)
-                                    .map(p => (
-                                        <button key={p} className="btn btn-sm" onClick={() => handlePagina(p)}
-                                            style={{ background: p === pagina ? 'var(--primary)' : 'white', border: '1px solid var(--primary)', color: p === pagina ? 'white' : 'var(--primary-dark)', fontWeight: p === pagina ? 700 : 400, padding: '4px 10px' }}>
-                                            {p}
+                ) : clientes.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
+                        <i className="fas fa-users fa-3x" style={{ opacity: 0.15, display: 'block', marginBottom: '12px' }}></i>
+                        <p>No hay clientes registrados.</p>
+                    </div>
+                ) : (
+                    <table className="table mb-0">
+                        <thead>
+                            <tr>
+                                <th style={thStyle}>Nombre</th>
+                                <th style={thStyle}>RUC / CI</th>
+                                <th style={thStyle}>Teléfono</th>
+                                <th style={thStyle}>Email</th>
+                                <th style={thStyle}>Acceso web</th>
+                                <th style={thStyle}></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {clientes.map(c => (
+                                <tr key={c.id}>
+                                    <td style={{ padding: '10px 16px', fontWeight: 500 }}>
+                                        {c.nombre}
+                                        {c.fechaReactivacionAuto && (
+                                            <span
+                                                title={`Este cliente estaba inactivo y se reactivó automáticamente al registrarse en la tienda online el ${fmtFechaHora(c.fechaReactivacionAuto)}.`}
+                                                style={{
+                                                    marginLeft: '8px', display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                                    background: '#fffbeb', color: '#b7791f', border: '1px solid #fbd38d',
+                                                    borderRadius: '20px', padding: '2px 8px', fontSize: '10px', fontWeight: 700,
+                                                    verticalAlign: 'middle', cursor: 'help'
+                                                }}>
+                                                <i className="fas fa-redo-alt" style={{ fontSize: '9px' }}></i>
+                                                Reactivado auto
+                                            </span>
+                                        )}
+                                    </td>
+                                    <td style={{ padding: '10px 16px', fontSize: '13px', color: 'var(--text-muted)' }}>{c.ruc || '—'}</td>
+                                    <td style={{ padding: '10px 16px', fontSize: '13px' }}>{c.telefono || '—'}</td>
+                                    <td style={{ padding: '10px 16px', fontSize: '13px' }}>{c.email || '—'}</td>
+                                    <td style={{ padding: '10px 16px' }}>
+                                        {c.tieneAccesoWeb
+                                            ? <span style={{ background: '#f0fff4', color: '#2f855a', padding: '2px 8px', borderRadius: '20px', fontSize: '11px', fontWeight: 700 }}>Sí</span>
+                                            : <span style={{ background: '#f5f5f5', color: '#718096', padding: '2px 8px', borderRadius: '20px', fontSize: '11px' }}>No</span>}
+                                    </td>
+                                    <td style={{ padding: '10px 16px', textAlign: 'right' }}>
+                                        <button onClick={() => abrirEditar(c)} className="btn btn-sm mr-2"
+                                            style={{ background: 'var(--primary-light)', color: 'var(--primary-dark)', border: '1px solid var(--primary)' }}>
+                                            <i className="fas fa-edit"></i>
                                         </button>
-                                    ))}
-                                <button className="btn btn-sm" onClick={() => handlePagina(pagina + 1)} disabled={pagina === result.totalPaginas}
-                                    style={{ background: 'var(--primary-light)', border: '1px solid var(--primary)', color: 'var(--primary-dark)', padding: '4px 10px' }}>›</button>
-                                <button className="btn btn-sm" onClick={() => handlePagina(result.totalPaginas)} disabled={pagina === result.totalPaginas}
-                                    style={{ background: 'var(--primary-light)', border: '1px solid var(--primary)', color: 'var(--primary-dark)', padding: '4px 10px' }}>»</button>
-                            </div>
-                        </div>
-                    )}
-                </div>
+                                        <button onClick={() => setConfirmEliminar(c)} className="btn btn-sm"
+                                            style={{ background: '#fff5f5', color: '#c53030', border: '1px solid #fed7d7' }}>
+                                            <i className="fas fa-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                )}
             </div>
 
-            {/* Modal */}
-            {showModal && (
-                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-                    <div style={{ background: 'white', borderRadius: '14px', width: '100%', maxWidth: '520px', boxShadow: '0 8px 40px rgba(0,0,0,0.2)' }}>
-                        <div style={{ padding: '20px 24px', borderBottom: '2px solid var(--primary-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <h5 style={{ fontWeight: 700, margin: 0 }}>
-                                <i className="fas fa-user mr-2" style={{ color: 'var(--primary)' }}></i>
-                                {editando ? 'Editar cliente' : 'Nuevo cliente'}
-                            </h5>
-                            <button onClick={cerrarModal} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>
+            {/* Paginacion */}
+            {totalPaginas > 1 && (
+                <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginTop: '20px' }}>
+                    <button onClick={() => setPagina(p => Math.max(1, p - 1))} disabled={pagina === 1}
+                        className="btn btn-sm" style={{ border: '1.5px solid var(--border)' }}>
+                        <i className="fas fa-chevron-left"></i>
+                    </button>
+                    <span style={{ display: 'flex', alignItems: 'center', fontSize: '13px', color: 'var(--text-muted)', padding: '0 8px' }}>
+                        {pagina} / {totalPaginas}
+                    </span>
+                    <button onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))} disabled={pagina === totalPaginas}
+                        className="btn btn-sm" style={{ border: '1.5px solid var(--border)' }}>
+                        <i className="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+            )}
+
+            {/* Modal nuevo/editar */}
+            {mostrarModal && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1050, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+                    <div style={{ background: 'white', borderRadius: '12px', width: '100%', maxWidth: '480px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+                        <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <h5 style={{ margin: 0, fontWeight: 700 }}>{editando ? 'Editar cliente' : 'Nuevo cliente'}</h5>
+                            <button onClick={() => setMostrarModal(false)}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '18px' }}>
+                                <i className="fas fa-times"></i>
+                            </button>
                         </div>
-                        <div style={{ padding: '24px' }}>
-                            <div className="row">
-                                <div className="col-12 mb-3">
-                                    <label style={{ fontWeight: 600, fontSize: '14px', marginBottom: '6px', display: 'block' }}>
-                                        Nombre <span style={{ color: 'var(--secondary)' }}>*</span>
-                                    </label>
-                                    <input type="text" className="form-control" placeholder="Nombre completo o razón social..."
-                                        value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} autoFocus />
-                                </div>
-                                <div className="col-md-6 mb-3">
-                                    <label style={{ fontWeight: 600, fontSize: '14px', marginBottom: '6px', display: 'block' }}>RUC</label>
-                                    <input type="text" className="form-control" placeholder="RUC del cliente..."
-                                        value={form.ruc} onChange={e => setForm({ ...form, ruc: e.target.value })} />
-                                </div>
-                                <div className="col-md-6 mb-3">
-                                    <label style={{ fontWeight: 600, fontSize: '14px', marginBottom: '6px', display: 'block' }}>Teléfono</label>
-                                    <input type="text" className="form-control" placeholder="Ej: 0981 000 000"
-                                        value={form.telefono} onChange={e => setForm({ ...form, telefono: e.target.value })} />
-                                </div>
-                                <div className="col-12 mb-3">
-                                    <label style={{ fontWeight: 600, fontSize: '14px', marginBottom: '6px', display: 'block' }}>Email</label>
-                                    <input type="email" className="form-control" placeholder="correo@ejemplo.com"
-                                        value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
-                                </div>
-                                <div className="col-12 mb-3">
-                                    <label style={{ fontWeight: 600, fontSize: '14px', marginBottom: '6px', display: 'block' }}>Dirección</label>
-                                    <input type="text" className="form-control" placeholder="Dirección del cliente..."
-                                        value={form.direccion} onChange={e => setForm({ ...form, direccion: e.target.value })} />
-                                </div>
+                        <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+                            <div>
+                                <label style={{ fontWeight: 600, fontSize: '13px', marginBottom: '4px', display: 'block' }}>
+                                    Nombre <span style={{ color: '#c53030' }}>*</span>
+                                </label>
+                                <input type="text" className="form-control"
+                                    placeholder="Nombre completo o razón social"
+                                    value={nombre} onChange={e => handleNombre(e.target.value)}
+                                    style={inputStyle('nombre')} />
+                                <MsgCampo error={errores.nombre} cargando={verificando.nombre} />
                             </div>
-                            <div className="d-flex gap-2 justify-content-end mt-2">
-                                <button onClick={cerrarModal} className="btn btn-sm"
-                                    style={{ background: 'var(--light)', border: '1px solid var(--border)', color: 'var(--text-dark)', padding: '8px 20px' }}>
-                                    Cancelar
-                                </button>
-                                <button onClick={guardar} className="btn btn-primary" disabled={guardando} style={{ padding: '8px 24px' }}>
-                                    {guardando ? <><i className="fas fa-spinner fa-spin mr-1"></i>Guardando...</> : <><i className="fas fa-save mr-1"></i>Guardar</>}
-                                </button>
+
+                            <div>
+                                <label style={{ fontWeight: 600, fontSize: '13px', marginBottom: '4px', display: 'block' }}>RUC / CI</label>
+                                <input type="text" className="form-control"
+                                    placeholder="Ej: 1234567-8 (RUC) o 1234567 (CI)"
+                                    value={ruc} onChange={e => handleRuc(e.target.value)}
+                                    style={inputStyle('ruc')} />
+                                <MsgCampo error={errores.ruc} cargando={verificando.ruc} />
                             </div>
+
+                            <div>
+                                <label style={{ fontWeight: 600, fontSize: '13px', marginBottom: '4px', display: 'block' }}>Teléfono</label>
+                                <input type="tel" className="form-control"
+                                    placeholder="Ej: 0981234567"
+                                    value={telefono} onChange={e => handleTelefono(e.target.value)}
+                                    style={inputStyle('telefono')} />
+                                <MsgCampo error={errores.telefono} cargando={verificando.telefono} />
+                            </div>
+
+                            <div>
+                                <label style={{ fontWeight: 600, fontSize: '13px', marginBottom: '4px', display: 'block' }}>Email</label>
+                                <input type="email" className="form-control"
+                                    placeholder="cliente@email.com"
+                                    value={email} onChange={e => handleEmail(e.target.value)}
+                                    style={inputStyle('email')} />
+                                <MsgCampo error={errores.email} cargando={verificando.email} />
+                            </div>
+
+                            <div>
+                                <label style={{ fontWeight: 600, fontSize: '13px', marginBottom: '4px', display: 'block' }}>Dirección</label>
+                                <input type="text" className="form-control"
+                                    placeholder="Dirección del cliente"
+                                    value={direccion} onChange={e => setDireccion(e.target.value)} />
+                            </div>
+                        </div>
+
+                        <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                            <button onClick={() => setMostrarModal(false)} className="btn"
+                                style={{ background: 'var(--primary-light)', color: 'var(--primary-dark)', border: '1px solid var(--primary)' }}>
+                                Cancelar
+                            </button>
+                            <button onClick={guardar} disabled={guardando || hayErrores()} className="btn btn-primary"
+                                style={{ fontWeight: 700, opacity: hayErrores() ? 0.6 : 1 }}>
+                                {guardando
+                                    ? <><i className="fas fa-spinner fa-spin mr-2"></i>Guardando...</>
+                                    : <><i className="fas fa-save mr-2"></i>{editando ? 'Actualizar' : 'Guardar'}</>}
+                            </button>
                         </div>
                     </div>
                 </div>
             )}
 
+            {/* Modal confirmar eliminar */}
+            {confirmEliminar && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1050, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+                    <div style={{ background: 'white', borderRadius: '12px', width: '100%', maxWidth: '400px', padding: '24px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+                        <h5 style={{ fontWeight: 700, marginBottom: '12px' }}>Eliminar cliente</h5>
+                        <p style={{ color: 'var(--text-muted)', marginBottom: '20px' }}>
+                            ¿Eliminar a <strong>{confirmEliminar.nombre}</strong>? Esta acción lo desactivará del sistema.
+                        </p>
+                        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                            <button onClick={() => setConfirmEliminar(null)} className="btn"
+                                style={{ background: 'var(--primary-light)', color: 'var(--primary-dark)', border: '1px solid var(--primary)' }}>
+                                Cancelar
+                            </button>
+                            <button onClick={eliminar} className="btn"
+                                style={{ background: '#c53030', color: 'white', border: 'none', fontWeight: 700 }}>
+                                <i className="fas fa-trash mr-2"></i>Eliminar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal reactivar cliente inactivo */}
             <ConfirmModal
-                show={confirmModal.show}
-                titulo="¿Eliminar cliente?"
-                mensaje={`¿Estás seguro que querés eliminar a "${confirmModal.nombre}"?`}
-                onConfirmar={eliminar}
-                onCancelar={() => setConfirmModal({ show: false, id: '', nombre: '' })}
-                tipo="danger"
+                show={!!modalReactivar}
+                titulo="Cliente inactivo encontrado"
+                mensaje={`${modalReactivar?.mensaje || ''}\n\n¿Querés reactivarlo con los datos actuales?`}
+                onConfirmar={confirmarReactivar}
+                onCancelar={() => setModalReactivar(null)}
+                tipo="warning"
+                textoConfirmar={reactivando ? 'Reactivando...' : 'Sí, reactivar'}
             />
         </Layout>
     )

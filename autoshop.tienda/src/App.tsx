@@ -9,6 +9,8 @@ import Registro from './pages/Registro'
 import MisPedidos from './pages/MisPedidos'
 import DetallePedido from './pages/DetallePedido'
 import Perfil from './pages/Perfil'
+import RecuperarPassword from './pages/RecuperarPassword'
+import ResetPassword from './pages/ResetPassword'
 
 // Verifica si hay sesion activa del cliente de la tienda
 function estaAutenticado(): boolean {
@@ -39,6 +41,8 @@ export default function App() {
                 <Route path="/carrito" element={<Carrito />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/registro" element={<Registro />} />
+                <Route path="/recuperar-password" element={<RecuperarPassword />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
 
                 {/* Privadas (requieren cuenta de cliente) */}
                 <Route path="/checkout" element={<RutaPrivada><Checkout /></RutaPrivada>} />

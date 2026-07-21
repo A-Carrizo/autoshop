@@ -81,6 +81,9 @@ export default function Presupuestos() {
     const [modalEliminar, setModalEliminar] = useState(false)
     const [eliminando, setEliminando] = useState(false)
 
+    // Descargar PDF
+    const [descargando, setDescargando] = useState(false)
+
     const inputRef = useRef<HTMLInputElement>(null)
     const busquedaTimeout = useRef<ReturnType<typeof setTimeout>>()
 
@@ -96,7 +99,10 @@ export default function Presupuestos() {
         finally { setCargando(false) }
     }, [filtroEstado])
 
-    useEffect(() => { cargarPresupuestos() }, [cargarPresupuestos])
+    useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        cargarPresupuestos()
+    }, [cargarPresupuestos])
 
     useEffect(() => {
         const handler = (e: MouseEvent) => {
@@ -279,6 +285,48 @@ export default function Presupuestos() {
         finally { setEliminando(false) }
     }
 
+    const descargarPresupuesto = async () => {
+        if (!presupuestoSeleccionado) return
+        setDescargando(true)
+        try {
+            if (!(window as { jspdf?: unknown }).jspdf) {
+                const s1 = document.createElement('script')
+                s1.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
+                document.head.appendChild(s1); await new Promise(r => { s1.onload = r })
+            }
+            if (!(window as { html2canvas?: unknown }).html2canvas) {
+                const s2 = document.createElement('script')
+                s2.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'
+                document.head.appendChild(s2); await new Promise(r => { s2.onload = r })
+            }
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const html2canvas = (window as any).html2canvas
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { jsPDF } = (window as any).jspdf
+
+            const elemento = document.getElementById('presupuesto-print')
+            if (!elemento) return
+
+            const canvas = await html2canvas(elemento, { scale: 2, backgroundColor: '#ffffff' })
+            const imgData = canvas.toDataURL('image/png')
+
+            // Ancho tipo hoja A4 (210mm), alto proporcional al contenido real
+            // (evita cortar el documento a mitad de página si tiene muchos items)
+            const anchoMM = 210
+            const altoMM = (canvas.height * anchoMM) / canvas.width
+
+            const doc = new jsPDF({ unit: 'mm', format: [anchoMM, altoMM] })
+            doc.addImage(imgData, 'PNG', 0, 0, anchoMM, altoMM)
+            doc.save(`${presupuestoSeleccionado.numeroPresupuesto}.pdf`)
+        } catch (e) {
+            console.error(e)
+            toast.error('Error al generar el PDF')
+        } finally {
+            setDescargando(false)
+        }
+    }
+
     const fmtFecha = (f: string) => new Date(f).toLocaleDateString('es-PY', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
     // ── VISTA DETALLE ────────────────────────────────────────────────────
@@ -294,9 +342,16 @@ export default function Presupuestos() {
                         </button>
                         <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700 }}>{p.numeroPresupuesto}</h2>
                         <span style={{ background: est.bg, color: est.color, fontWeight: 700, fontSize: '12px', padding: '4px 12px', borderRadius: '20px' }}>{est.label}</span>
-                        <button onClick={() => window.print()} className="btn btn-sm ms-auto" style={{ background: '#1a1a1a', color: 'white', border: 'none' }}>
-                            <i className="fas fa-print mr-2"></i>Imprimir / PDF
-                        </button>
+                        <div className="d-flex gap-2 ms-auto">
+                            <button onClick={() => window.print()} className="btn btn-sm" style={{ background: '#1a1a1a', color: 'white', border: 'none' }}>
+                                <i className="fas fa-print mr-2"></i>Imprimir / PDF
+                            </button>
+                            <button onClick={descargarPresupuesto} disabled={descargando} className="btn btn-sm" style={{ background: '#2b6cb0', color: 'white', border: 'none' }}>
+                                {descargando
+                                    ? <><i className="fas fa-spinner fa-spin mr-2"></i>Generando...</>
+                                    : <><i className="fas fa-download mr-2"></i>Descargar</>}
+                            </button>
+                        </div>
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
@@ -432,14 +487,11 @@ export default function Presupuestos() {
                         )}
 
                         {/* Pie */}
-                        <div style={{ borderTop: '1px solid #e0e0e0', paddingTop: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                            <div style={{ fontSize: '11px', color: '#999' }}>
-                                <div>Este presupuesto tiene una validez de 30 días a partir de la fecha de emisión.</div>
-                                <div style={{ marginTop: '4px' }}>MagCar Auto Shop — Accesorios y Luces Automotrices</div>
+                        <div style={{ borderTop: '1px solid #e0e0e0', paddingTop: '16px' }}>
+                            <div style={{ fontWeight: 700, color: '#c53030', fontSize: '12px', textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>
+                                ⚠ Los precios pueden estar sujetos a variaciones.
                             </div>
-                            <div style={{ textAlign: 'center' }}>
-                                <div style={{ width: '140px', borderTop: '1px solid #333', paddingTop: '8px', fontSize: '11px', color: '#555' }}>Firma y sello</div>
-                            </div>
+                            <div style={{ marginTop: '4px', fontSize: '11px', color: '#999' }}>MagCar Auto Shop — Accesorios y Luces Automotrices</div>
                         </div>
                     </div>
                 </div>

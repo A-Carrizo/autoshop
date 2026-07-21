@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
 import Layout from '../components/layout/Layout'
 import ConfirmModal from '../components/ui/ConfirmModal'
@@ -57,7 +57,11 @@ export default function PedidosOnline() {
     const [motivoCancelacion, setMotivoCancelacion] = useState('')
     const [procesando, setProcesando] = useState(false)
 
-    const cargarPedidos = useCallback(async () => {
+    useEffect(() => {
+        cargarPedidos()
+    }, [])
+
+    const cargarPedidos = async () => {
         setLoading(true)
         try {
             const res = await fetch(`${API.pedidos}/admin?tamano=100`)
@@ -68,12 +72,7 @@ export default function PedidosOnline() {
         } finally {
             setLoading(false)
         }
-    }, [])
-
-    useEffect(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        cargarPedidos()
-    }, [cargarPedidos])
+    }
 
     const verDetalle = async (id: string) => {
         try {
@@ -240,7 +239,16 @@ export default function PedidosOnline() {
                                         <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '2px' }}>CLIENTE</div>
                                         <div style={{ fontWeight: 600 }}>{pedidoDetalle.clienteNombre}</div>
                                         {pedidoDetalle.clienteEmail && <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{pedidoDetalle.clienteEmail}</div>}
-                                        {pedidoDetalle.clienteTelefono && <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{pedidoDetalle.clienteTelefono}</div>}
+                                        {pedidoDetalle.clienteTelefono && (
+                                            <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{pedidoDetalle.clienteTelefono}</span>
+                                                <a href={`https://wa.me/595${pedidoDetalle.clienteTelefono.replace(/^0/, '').replace(/[\s\-]/g, '')}`}
+                                                    target="_blank" rel="noopener noreferrer"
+                                                    style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#25D366', color: 'white', padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 700, textDecoration: 'none' }}>
+                                                    <i className="fab fa-whatsapp"></i> WhatsApp
+                                                </a>
+                                            </div>
+                                        )}
                                     </div>
                                     <div>
                                         <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '2px' }}>FECHA</div>

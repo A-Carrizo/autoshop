@@ -105,8 +105,28 @@ export default function Checkout() {
                                 <div style={{ fontSize: '12px', color: '#718096', marginTop: '2px' }}>{t.transferenciaSubtexto}</div>
                             </div>
                         </div>
-                        <div style={{ background: '#fff8f0', border: '1px solid #fbd38d', borderRadius: '10px', padding: '12px 16px', fontSize: '12px', color: '#744210', marginBottom: '20px' }}>
+                        <div style={{ background: '#fff8f0', border: '1px solid #fbd38d', borderRadius: '10px', padding: '12px 16px', fontSize: '12px', color: '#744210', marginBottom: '12px' }}>
                             <i className="fas fa-info-circle" style={{ marginRight: '6px' }}></i>{t.avisoTransferencia}
+                        </div>
+
+                        {/* Datos bancarios */}
+                        <div style={{ background: '#f0fff4', border: '1px solid #c6f6d5', borderRadius: '10px', padding: '16px', marginBottom: '20px' }}>
+                            <div style={{ fontWeight: 700, fontSize: '13px', color: '#2f855a', marginBottom: '10px' }}>
+                                <i className="fas fa-university" style={{ marginRight: '6px' }}></i>Datos para transferencia
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px' }}>
+                                    <span style={{ color: '#718096' }}>Alias:</span>
+                                    <span style={{ fontWeight: 700, color: '#1a202c' }}>0983846161</span>
+                                </div>
+                                <div style={{ borderTop: '1px solid #c6f6d5', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px' }}>
+                                    <span style={{ color: '#718096' }}>WhatsApp / Consultas/ Comprobantes</span>
+                                    <a href="https://wa.me/595992188164" target="_blank" rel="noopener noreferrer"
+                                        style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#25D366', color: 'white', padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 700, textDecoration: 'none' }}>
+                                        <i className="fab fa-whatsapp"></i> 0992188164
+                                    </a>
+                                </div>
+                            </div>
                         </div>
                         <div>
                             <label style={{ fontWeight: 600, fontSize: '13px', color: '#2d3748', marginBottom: '6px', display: 'block' }}>{t.notasAdicionales}</label>

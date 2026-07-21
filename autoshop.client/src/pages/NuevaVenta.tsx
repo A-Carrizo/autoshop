@@ -68,6 +68,7 @@ export default function NuevaVenta() {
     const [confirmModal, setConfirmModal] = useState(false)
     const [procesando, setProcesando] = useState(false)
     const [ventaExitosa, setVentaExitosa] = useState<VentaExitosa | null>(null)
+    const [descargando, setDescargando] = useState(false)
     const productoInputRef = useRef<HTMLInputElement>(null)
     const busquedaTimeout = useRef<ReturnType<typeof setTimeout>>()
     const clienteTimeout = useRef<ReturnType<typeof setTimeout>>()
@@ -214,6 +215,47 @@ export default function NuevaVenta() {
         setTimeout(() => productoInputRef.current?.focus(), 100)
     }
 
+    const descargarComprobante = async () => {
+        if (!ventaExitosa) return
+        setDescargando(true)
+        try {
+            if (!(window as { jspdf?: unknown }).jspdf) {
+                const s1 = document.createElement('script')
+                s1.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
+                document.head.appendChild(s1); await new Promise(r => { s1.onload = r })
+            }
+            if (!(window as { html2canvas?: unknown }).html2canvas) {
+                const s2 = document.createElement('script')
+                s2.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'
+                document.head.appendChild(s2); await new Promise(r => { s2.onload = r })
+            }
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const html2canvas = (window as any).html2canvas
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { jsPDF } = (window as any).jspdf
+
+            const elemento = document.getElementById('comprobante')
+            if (!elemento) return
+
+            const canvas = await html2canvas(elemento, { scale: 2, backgroundColor: '#ffffff' })
+            const imgData = canvas.toDataURL('image/png')
+
+            // Tamaño tipo ticket térmico (80mm de ancho, alto proporcional a la imagen)
+            const anchoMM = 80
+            const altoMM = (canvas.height * anchoMM) / canvas.width
+
+            const doc = new jsPDF({ unit: 'mm', format: [anchoMM, altoMM] })
+            doc.addImage(imgData, 'PNG', 0, 0, anchoMM, altoMM)
+            doc.save(`ticket_${ventaExitosa.numeroFactura}.pdf`)
+        } catch (e) {
+            console.error(e)
+            toast.error('Error al generar el PDF')
+        } finally {
+            setDescargando(false)
+        }
+    }
+
     // ── Pantalla de comprobante ──────────────────────────────────────────
     if (ventaExitosa) {
         const esFactura = ventaExitosa.tipoComprobante === 'FACTURA'
@@ -224,6 +266,11 @@ export default function NuevaVenta() {
                     <div className="d-flex gap-2 mb-3 no-print">
                         <button onClick={() => window.print()} className="btn btn-primary" style={{ flex: 1 }}>
                             <i className="fas fa-print mr-2"></i>Imprimir
+                        </button>
+                        <button onClick={descargarComprobante} disabled={descargando} className="btn" style={{ flex: 1, background: '#1b5e20', color: 'white', border: 'none' }}>
+                            {descargando
+                                ? <><i className="fas fa-spinner fa-spin mr-2"></i>Generando...</>
+                                : <><i className="fas fa-download mr-2"></i>Descargar</>}
                         </button>
                         <button onClick={nuevaVenta} className="btn" style={{ flex: 1, background: 'var(--primary-light)', color: 'var(--primary-dark)', border: '1px solid var(--primary)' }}>
                             <i className="fas fa-plus mr-2"></i>Nueva venta

@@ -8,7 +8,7 @@ import { useIdioma } from '../context/IdiomaContext'
 import { API } from '../config/api'
 
 const COL = { primary: '#CC0000', primaryDark: '#880000', muted: '#718096', border: '#e0e0e0' }
-const TRANSPORTADORAS_BASE = ['Jet', 'Flash Courier', 'Logros', 'Coordinadora', 'DHL']
+const TRANSPORTADORAS_BASE = ['Transportadora TSI', 'Multi Envios', 'Transportadora Occidental', 'Ruta3', 'Nuestra Señora']
 
 export default function Checkout() {
     const { items, totalPrecio, vaciarCarrito } = useCarrito()
@@ -97,6 +97,10 @@ export default function Checkout() {
                                     style={{ width: '100%', padding: '11px 12px', border: `1.5px solid ${COL.primary}`, borderRadius: '8px', fontSize: '14px', color: '#2d3748', outline: 'none' }} />
                             </div>
                         )}
+                        <div style={{ background: '#fff8f0', border: '1px solid #fbd38d', borderRadius: '10px', padding: '12px 16px', fontSize: '12px', color: '#744210', marginBottom: '20px' }}>
+                            <i className="fas fa-truck" style={{ marginRight: '6px' }}></i>
+                            El costo del envío corre por cuenta del cliente y se abona directamente a la transportadora al recibir el pedido.
+                        </div>
                         <h2 style={{ fontSize: '15px', fontWeight: 700, color: '#1a202c', margin: '0 0 12px' }}>{t.metodoDePago}</h2>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#fff0f0', border: `1.5px solid ${COL.primary}`, borderRadius: '10px', padding: '14px 16px', marginBottom: '16px' }}>
                             <i className="fas fa-university" style={{ fontSize: '20px', color: COL.primary }}></i>

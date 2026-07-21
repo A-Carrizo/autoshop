@@ -252,7 +252,7 @@ namespace autoshop.Server.Controllers
 
             var emailLower = dto.Email.Trim().ToLower();
             var cliente = await _db.Clientes.FirstOrDefaultAsync(c =>
-                c.Email != null && c.Email.ToLower() == emailLower && c.Activo);
+                c.Email != null && c.Email.ToLower() == emailLower);
 
             if (cliente == null)
                 return Ok(new { mensaje = "Si el email existe, recibirás las instrucciones" });
@@ -317,8 +317,7 @@ namespace autoshop.Server.Controllers
 
             var cliente = await _db.Clientes.FirstOrDefaultAsync(c =>
                 c.TokenReset == dto.Token &&
-                c.TokenResetExpira > DateTime.UtcNow &&
-                c.TieneAccesoWeb);
+                c.TokenResetExpira > DateTime.UtcNow);
 
             if (cliente == null)
                 return BadRequest(new { mensaje = "Token inválido o expirado" });

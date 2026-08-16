@@ -1,12 +1,8 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { API } from '../config/api'
 import toast from 'react-hot-toast'
 
-const BG = '#1a365d'
-const CARD = '#ffffff'
-const PRIMARY = '#2c5282'
-const ACCENT = '#4299e1'
 const MUTED = '#718096'
 const BORDER = '#e2e8f0'
 
@@ -15,7 +11,6 @@ export default function Login() {
     const [password, setPassword] = useState('')
     const [loading, setLoading] = useState(false)
     const [verPassword, setVerPassword] = useState(false)
-    const navigate = useNavigate()
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault()

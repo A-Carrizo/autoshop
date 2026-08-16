@@ -70,8 +70,8 @@ export default function NuevaVenta() {
     const [ventaExitosa, setVentaExitosa] = useState<VentaExitosa | null>(null)
     const [descargando, setDescargando] = useState(false)
     const productoInputRef = useRef<HTMLInputElement>(null)
-    const busquedaTimeout = useRef<ReturnType<typeof setTimeout>>()
-    const clienteTimeout = useRef<ReturnType<typeof setTimeout>>()
+    const busquedaTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+    const clienteTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
     const buscarProductos = useCallback(async (termino: string) => {
         if (!termino.trim()) { setResultados([]); return }

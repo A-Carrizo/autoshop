@@ -59,7 +59,7 @@ export default function Presupuestos() {
     const [guardando, setGuardando] = useState(false)
 
     // Buscador de clientes
-    const [_busquedaCliente, setBusquedaCliente] = useState('')
+    
     const [resultadosCliente, setResultadosCliente] = useState<Cliente[]>([])
     const [buscandoCliente, setBuscandoCliente] = useState(false)
     const clienteTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)

@@ -60,7 +60,6 @@ export default function NuevaVenta() {
     const [buscandoProducto, setBuscandoProducto] = useState(false)
     const [clienteNombre, setClienteNombre] = useState('')
     const [clienteRuc, setClienteRuc] = useState('')
-    const [busquedaCliente, setBusquedaCliente] = useState('')
     const [resultadosCliente, setResultadosCliente] = useState<Cliente[]>([])
     const [buscandoCliente, setBuscandoCliente] = useState(false)
     const [metodoPago, setMetodoPago] = useState<'EFECTIVO' | 'TRANSFERENCIA'>('EFECTIVO')
@@ -70,8 +69,8 @@ export default function NuevaVenta() {
     const [ventaExitosa, setVentaExitosa] = useState<VentaExitosa | null>(null)
     const [descargando, setDescargando] = useState(false)
     const productoInputRef = useRef<HTMLInputElement>(null)
-    const busquedaTimeout = useRef<ReturnType<typeof setTimeout>>()
-    const clienteTimeout = useRef<ReturnType<typeof setTimeout>>()
+    const busquedaTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+    const clienteTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
     const buscarProductos = useCallback(async (termino: string) => {
         if (!termino.trim()) { setResultados([]); return }

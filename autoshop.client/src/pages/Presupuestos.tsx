@@ -59,10 +59,9 @@ export default function Presupuestos() {
     const [guardando, setGuardando] = useState(false)
 
     // Buscador de clientes
-    const [busquedaCliente, setBusquedaCliente] = useState('')
     const [resultadosCliente, setResultadosCliente] = useState<Cliente[]>([])
     const [buscandoCliente, setBuscandoCliente] = useState(false)
-    const clienteTimeout = useRef<ReturnType<typeof setTimeout>>()
+    const clienteTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
     const clienteDropdownRef = useRef<HTMLDivElement>(null)
 
     // Servicio
@@ -85,7 +84,7 @@ export default function Presupuestos() {
     const [descargando, setDescargando] = useState(false)
 
     const inputRef = useRef<HTMLInputElement>(null)
-    const busquedaTimeout = useRef<ReturnType<typeof setTimeout>>()
+    const busquedaTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
     const cargarPresupuestos = useCallback(async () => {
         setCargando(true)

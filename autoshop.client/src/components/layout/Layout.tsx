@@ -1,4 +1,4 @@
-import { ReactNode } from 'react'
+import { type ReactNode } from 'react'
 import Sidebar from './Sidebar'
 import Navbar from './Navbar'
 import { useSidebar } from '../../context/SidebarContext'
@@ -19,7 +19,6 @@ export default function Layout({ children, titulo, sinFooter = false }: LayoutPr
     return (
         <div id="wrapper" style={{ display: 'flex' }}>
             <Sidebar />
-
             <div id="content-wrapper" style={{
                 marginLeft: `${sidebarW}px`,
                 width: `calc(100% - ${sidebarW}px)`,
@@ -28,11 +27,9 @@ export default function Layout({ children, titulo, sinFooter = false }: LayoutPr
                 transition: 'margin-left 0.25s ease, width 0.25s ease',
             }}>
                 <Navbar titulo={titulo} />
-
                 <div id="content" style={{ marginTop: '60px', padding: '24px' }}>
                     {children}
                 </div>
-
                 {!sinFooter && (
                     <footer style={{
                         backgroundColor: 'white',

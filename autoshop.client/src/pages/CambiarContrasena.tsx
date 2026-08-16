@@ -3,11 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { API } from '../config/api'
 
-const BG = '#1a365d'
 const CARD = '#ffffff'
 const PRIMARY = '#2c5282'
 const ACCENT = '#4299e1'
-const MUTED = '#718096'
 const BORDER = '#e2e8f0'
 
 export default function CambiarContrasena() {
@@ -33,7 +31,6 @@ export default function CambiarContrasena() {
             toast.error('Las contraseñas no coinciden')
             return
         }
-
         setGuardando(true)
         try {
             const token = localStorage.getItem('auth_token')
@@ -50,7 +47,6 @@ export default function CambiarContrasena() {
                 toast.error(data.mensaje || 'No se pudo cambiar la contraseña')
                 return
             }
-
             toast.success('Contraseña actualizada. Inicia sesión nuevamente.')
             localStorage.removeItem('auth_token')
             localStorage.removeItem('auth_nombre')
@@ -71,8 +67,6 @@ export default function CambiarContrasena() {
             padding: '20px', fontFamily: "'Segoe UI', sans-serif"
         }}>
             <div style={{ width: '100%', maxWidth: '420px' }}>
-
-                {/* Header */}
                 <div style={{ textAlign: 'center', marginBottom: '32px' }}>
                     <div style={{
                         width: '56px', height: '56px', borderRadius: '14px',
@@ -85,14 +79,11 @@ export default function CambiarContrasena() {
                     <h2 style={{ color: '#ffffff', fontWeight: 800, fontSize: '22px', marginBottom: '4px' }}>Cambiar contraseña</h2>
                     <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '13px' }}>Actualiza tus credenciales de acceso</p>
                 </div>
-
-                {/* Card */}
                 <div style={{
                     background: CARD, borderRadius: '16px', padding: '36px',
                     boxShadow: '0 24px 64px rgba(0,0,0,0.25)'
                 }}>
                     <form onSubmit={handleGuardar}>
-
                         <div style={{ marginBottom: '16px' }}>
                             <label style={{ fontWeight: 600, fontSize: '13px', color: '#2d3748', marginBottom: '6px', display: 'block' }}>Contraseña actual</label>
                             <div style={{ position: 'relative' }}>
@@ -113,7 +104,6 @@ export default function CambiarContrasena() {
                                 </button>
                             </div>
                         </div>
-
                         <div style={{ marginBottom: '16px' }}>
                             <label style={{ fontWeight: 600, fontSize: '13px', color: '#2d3748', marginBottom: '6px', display: 'block' }}>Nueva contraseña</label>
                             <div style={{ position: 'relative' }}>
@@ -134,7 +124,6 @@ export default function CambiarContrasena() {
                                 </button>
                             </div>
                         </div>
-
                         <div style={{ marginBottom: '24px' }}>
                             <label style={{ fontWeight: 600, fontSize: '13px', color: '#2d3748', marginBottom: '6px', display: 'block' }}>Confirmar nueva contraseña</label>
                             <div style={{ position: 'relative' }}>
@@ -151,7 +140,6 @@ export default function CambiarContrasena() {
                                 />
                             </div>
                         </div>
-
                         <button type="submit" disabled={guardando}
                             style={{
                                 width: '100%', padding: '13px',
@@ -164,7 +152,6 @@ export default function CambiarContrasena() {
                             {guardando ? <><i className="fas fa-spinner fa-spin" style={{ marginRight: '8px' }}></i>Guardando...</> : 'Guardar nueva contraseña'}
                         </button>
                     </form>
-
                     <div style={{ textAlign: 'center' }}>
                         <button onClick={() => navigate(-1)} style={{
                             background: 'none', border: 'none', color: PRIMARY,

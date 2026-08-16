@@ -1,8 +1,10 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
 import { API } from '../config/api'
 import toast from 'react-hot-toast'
 
+const CARD = '#ffffff'
+const PRIMARY = '#2c5282'
+const ACCENT = '#4299e1'
 const MUTED = '#718096'
 const BORDER = '#e2e8f0'
 
@@ -44,8 +46,6 @@ export default function Login() {
             padding: '20px', fontFamily: "'Segoe UI', sans-serif"
         }}>
             <div style={{ width: '100%', maxWidth: '400px' }}>
-
-                {/* Header */}
                 <div style={{ textAlign: 'center', marginBottom: '32px' }}>
                     <div style={{
                         width: '56px', height: '56px', borderRadius: '14px',
@@ -58,15 +58,12 @@ export default function Login() {
                     <h2 style={{ color: '#ffffff', fontWeight: 800, fontSize: '24px', marginBottom: '4px' }}>MagCar</h2>
                     <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '13px', letterSpacing: '1px', textTransform: 'uppercase' }}>Auto Shop · Sistema de Gestion</p>
                 </div>
-
-                {/* Card */}
                 <div style={{
                     background: CARD, borderRadius: '16px', padding: '36px',
                     boxShadow: '0 24px 64px rgba(0,0,0,0.25)'
                 }}>
                     <h5 style={{ fontWeight: 700, color: '#1a202c', marginBottom: '4px', fontSize: '18px' }}>Bienvenido</h5>
                     <p style={{ color: MUTED, fontSize: '13px', marginBottom: '28px' }}>Ingresa tus credenciales para acceder al sistema</p>
-
                     <form onSubmit={handleLogin}>
                         <div style={{ marginBottom: '16px' }}>
                             <label style={{ fontWeight: 600, fontSize: '13px', color: '#2d3748', marginBottom: '6px', display: 'block' }}>Correo electronico</label>
@@ -85,7 +82,6 @@ export default function Login() {
                                 />
                             </div>
                         </div>
-
                         <div style={{ marginBottom: '24px' }}>
                             <label style={{ fontWeight: 600, fontSize: '13px', color: '#2d3748', marginBottom: '6px', display: 'block' }}>Contrasena</label>
                             <div style={{ position: 'relative' }}>
@@ -107,7 +103,6 @@ export default function Login() {
                                 </button>
                             </div>
                         </div>
-
                         <button type="submit" disabled={loading}
                             style={{
                                 width: '100%', padding: '13px',
@@ -122,14 +117,12 @@ export default function Login() {
                             {loading ? <><i className="fas fa-spinner fa-spin" style={{ marginRight: '8px' }}></i>Iniciando sesion...</> : 'Iniciar sesion'}
                         </button>
                     </form>
-
                     <div style={{ textAlign: 'center' }}>
                         <a href="/recuperar-password" style={{ color: PRIMARY, fontSize: '13px', textDecoration: 'none', fontWeight: 600 }}>
                             <i className="fas fa-key" style={{ marginRight: '5px' }}></i>Olvide mi contrasena
                         </a>
                     </div>
                 </div>
-
                 <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.25)', fontSize: '12px', marginTop: '24px' }}>
                     © 2026 MagCar Auto Shop
                 </p>

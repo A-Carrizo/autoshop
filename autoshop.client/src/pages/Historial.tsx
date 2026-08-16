@@ -54,6 +54,7 @@ export default function Historial() {
     const [ventaDetalle, setVentaDetalle] = useState<VentaCompleta | null>(null)
     const [loadingDetalle, setLoadingDetalle] = useState(false)
     const [confirmAnular, setConfirmAnular] = useState<{ show: boolean, id: string, numero: string }>({ show: false, id: '', numero: '' })
+    const [_anulando, setAnulando] = useState(false)
 
     const cargarVentas = async (pag = pagina, busq = busqueda, d = desde, h = hasta) => {
         try {

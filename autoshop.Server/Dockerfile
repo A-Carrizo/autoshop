@@ -1,38 +1,74 @@
-# See https://aka.ms/customizecontainer to learn how to customize your debug container and how Visual Studio uses this Dockerfile to build your images for faster debugging.
+version: "3.9"
 
-# This stage is used when running from VS in fast mode (Default for Debug configuration)
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
-USER $APP_UID
-WORKDIR /app
-EXPOSE 8080
-EXPOSE 8081
+services:
+  autoshop_db:
+    image: postgres:15-alpine
+    container_name: autoshop_db
+    restart: always
+    environment:
+      POSTGRES_DB: autoshop_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - autoshop_postgres_data:/var/lib/postgresql/data
+    networks:
+      - autoshop_net
 
+  autoshop_backend:
+    build:
+      context: .
+      dockerfile: autoshop.Server/Dockerfile
+    container_name: autoshop_backend
+    restart: always
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: Host=autoshop_db;Port=5432;Database=autoshop_db;Username=postgres;Password=${DB_PASSWORD}
+      Smtp__Host: smtp.gmail.com
+      Smtp__Port: "587"
+      Smtp__User: ${SMTP_USER}
+      Smtp__Pass: ${SMTP_PASS}
+      FrontendUrl: https://erp.magcar.shop
+      TiendaUrl: https://magcar.shop
+    ports:
+      - "5200:8080"
+    depends_on:
+      - autoshop_db
+    networks:
+      - autoshop_net
+    volumes:
+      - autoshop_imagenes:/app/wwwroot/imagenes
 
-# This stage is used to build the service project
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS with-node
-RUN apt-get update
-RUN apt-get install curl
-RUN curl -sL https://deb.nodesource.com/setup_20.x | bash
-RUN apt-get -y install nodejs
+  autoshop_tienda:
+    build:
+      context: ./autoshop.tienda
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: https://api.magcar.shop
+    container_name: autoshop_tienda
+    restart: always
+    ports:
+      - "5201:80"
+    networks:
+      - autoshop_net
 
+  autoshop_erp:
+    build:
+      context: ./autoshop.client
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: https://api.magcar.shop
+    container_name: autoshop_erp
+    restart: always
+    ports:
+      - "5202:80"
+    networks:
+      - autoshop_net
 
-FROM with-node AS build
-ARG BUILD_CONFIGURATION=Release
-WORKDIR /src
-COPY ["autoshop.Server/autoshop.Server.csproj", "autoshop.Server/"]
-COPY ["autoshop.client/autoshop.client.esproj", "autoshop.client/"]
-RUN dotnet restore "./autoshop.Server/autoshop.Server.csproj"
-COPY . .
-WORKDIR "/src/autoshop.Server"
-RUN dotnet build "./autoshop.Server.csproj" -c $BUILD_CONFIGURATION -o /app/build
+volumes:
+  autoshop_postgres_data:
+  autoshop_imagenes:
 
-# This stage is used to publish the service project to be copied to the final stage
-FROM build AS publish
-ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "./autoshop.Server.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
-
-# This stage is used in production or when running from VS in regular mode (Default when not using the Debug configuration)
-FROM base AS final
-WORKDIR /app
-COPY --from=publish /app/publish .
-ENTRYPOINT ["dotnet", "autoshop.Server.dll"]
+networks:
+  autoshop_net:
+    driver: bridge

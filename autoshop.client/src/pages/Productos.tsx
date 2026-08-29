@@ -509,7 +509,7 @@ export default function Productos() {
                                     )}
                                     {p.imagenUrl ? (
                                         <img src={`${API.imagenesBase}${p.imagenUrl}`} alt={p.nombre}
-                                            style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                            style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '10px' }} />
                                     ) : (
                                         <i className="fas fa-box fa-3x" style={{ color: 'var(--primary)', opacity: 0.4 }}></i>
                                     )}
@@ -572,7 +572,7 @@ export default function Productos() {
                                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '20px' }}>
                                         <div style={{ width: '160px', height: '160px', background: 'var(--primary-light)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0, border: '2px solid var(--border)' }}>
                                             {previewImagen ? (
-                                                <img src={previewImagen} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                <img src={previewImagen} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '8px' }} />
                                             ) : (
                                                 <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
                                                     <i className="fas fa-image fa-3x" style={{ color: 'var(--primary)', opacity: 0.4, marginBottom: '8px', display: 'block' }}></i>

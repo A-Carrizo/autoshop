@@ -367,3 +367,11 @@ FodyWeavers.xsd
 
 # Imágenes de productos (se almacenan localmente)
 autoshop.Server/wwwroot/imagenes/productos/
+
+# Secretos - NUNCA subir credenciales al repo
+.env
+*.env
+!*.env.example
+autoshop.Server/appsettings.json
+autoshop.Server/appsettings.Development.json
+autoshop.Server/appsettings.Production.json

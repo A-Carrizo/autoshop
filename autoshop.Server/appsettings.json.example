@@ -1,0 +1,20 @@
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Host=host.docker.internal;Port=5432;Database=autoshop_db;Username=postgres;Password=CHANGE_ME"
+  },
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "Smtp": {
+    "Host": "smtp.gmail.com",
+    "Port": "587",
+    "User": "CHANGE_ME",
+    "Pass": "CHANGE_ME"
+  },
+  "FrontendUrl": "https://localhost:5500",
+  "TiendaUrl": "http://localhost:53938",
+  "AllowedHosts": "*"
+}

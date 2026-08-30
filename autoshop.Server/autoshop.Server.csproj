@@ -33,7 +33,8 @@
     <ProjectReference Include="..\autoshop.client\autoshop.client.esproj">
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>
-    <ProjectReference Include="..\autoshop.tienda\autoshop.tienda.esproj" />
+    <ProjectReference Include="..\autoshop.tienda\autoshop.tienda.esproj"
+                  Condition="'$(Configuration)' == 'Debug'" />
   </ItemGroup>
 
   <ItemGroup>

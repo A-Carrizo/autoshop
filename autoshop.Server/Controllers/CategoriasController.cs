@@ -96,7 +96,7 @@ namespace autoshop.Server.Controllers
             if (categoria == null) return NotFound();
 
             var tieneProductos = await _context.Productos
-                .AnyAsync(p => p.CategoriaId == id && p.Activo);
+                .AnyAsync(p => p.Activo && p.Categorias.Any(c => c.Id == id));
 
             if (tieneProductos)
                 return BadRequest(new { mensaje = "No se puede eliminar una categoría que tiene productos activos asociados." });

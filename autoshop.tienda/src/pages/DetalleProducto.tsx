@@ -7,10 +7,12 @@ import { useCarrito } from '../context/CarritoContext'
 import { useIdioma } from '../context/IdiomaContext'
 import { API } from '../config/api'
 
+interface Categoria { id: string; nombre: string }
+
 interface ProductoDetalle {
     id: string; nombre: string; descripcion: string | null; precioVenta: number
     precioOriginal: number; descuentoPct: number; imagenUrl: string | null
-    categoriaId: string; categoriaNombre: string; enStock: boolean; stockActual: number
+    categorias: Categoria[]; enStock: boolean; stockActual: number
 }
 
 const COL = { primary: '#CC0000', primaryDark: '#880000', muted: '#718096', border: '#e0e0e0' }
@@ -86,7 +88,13 @@ export default function DetalleProducto() {
                         )}
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ color: COL.primary, fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>{producto.categoriaNombre}</span>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
+                            {producto.categorias.map(c => (
+                                <span key={c.id} style={{ color: COL.primary, fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', background: '#fff0f0', padding: '3px 8px', borderRadius: '6px' }}>
+                                    {c.nombre}
+                                </span>
+                            ))}
+                        </div>
                         <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#1a202c', margin: '0 0 16px', lineHeight: 1.3 }}>{producto.nombre}</h1>
                         <div style={{ marginBottom: '20px' }}>
                             {producto.descuentoPct > 0 && <div style={{ color: '#a0aec0', fontSize: '15px', textDecoration: 'line-through' }}>Gs. {fmt(producto.precioOriginal)}</div>}

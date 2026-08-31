@@ -24,7 +24,7 @@ namespace autoshop.Server.Controllers
             [FromQuery] string? orden = null)
         {
             var query = _context.Productos
-                .Include(p => p.Categoria)
+                .Include(p => p.Categorias)
                 .Include(p => p.Inventario)
                 .Where(p => p.Activo && p.VisibleWeb)
                 .AsQueryable();
@@ -33,7 +33,7 @@ namespace autoshop.Server.Controllers
                 query = query.Where(p => p.Nombre.ToLower().Contains(busqueda.ToLower()));
 
             if (categoriaId.HasValue)
-                query = query.Where(p => p.CategoriaId == categoriaId.Value);
+                query = query.Where(p => p.Categorias.Any(c => c.Id == categoriaId.Value));
 
             query = orden switch
             {
@@ -57,8 +57,7 @@ namespace autoshop.Server.Controllers
                     PrecioOriginal = p.PrecioVenta,
                     p.DescuentoPct,
                     p.ImagenUrl,
-                    CategoriaId = p.CategoriaId,
-                    CategoriaNombre = p.Categoria.Nombre,
+                    Categorias = p.Categorias.Select(c => new { c.Id, c.Nombre }),
                     EnStock = p.Inventario != null && p.Inventario.StockActual > 0,
                     StockActual = p.Inventario != null ? p.Inventario.StockActual : 0
                 })
@@ -71,7 +70,7 @@ namespace autoshop.Server.Controllers
         public async Task<IActionResult> GetProducto(Guid id)
         {
             var producto = await _context.Productos
-                .Include(p => p.Categoria)
+                .Include(p => p.Categorias)
                 .Include(p => p.Inventario)
                 .Where(p => p.Id == id && p.Activo && p.VisibleWeb)
                 .Select(p => new
@@ -83,8 +82,7 @@ namespace autoshop.Server.Controllers
                     PrecioOriginal = p.PrecioVenta,
                     p.DescuentoPct,
                     p.ImagenUrl,
-                    CategoriaId = p.CategoriaId,
-                    CategoriaNombre = p.Categoria.Nombre,
+                    Categorias = p.Categorias.Select(c => new { c.Id, c.Nombre }),
                     EnStock = p.Inventario != null && p.Inventario.StockActual > 0,
                     StockActual = p.Inventario != null ? p.Inventario.StockActual : 0
                 })

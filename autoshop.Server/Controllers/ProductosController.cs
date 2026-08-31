@@ -26,7 +26,7 @@ namespace autoshop.Server.Controllers
             [FromQuery] Guid? categoriaId = null)
         {
             var query = _context.Productos
-                .Include(p => p.Categoria)
+                .Include(p => p.Categorias)
                 .Include(p => p.Inventario)
                 .Where(p => p.Activo)
                 .AsQueryable();
@@ -37,7 +37,7 @@ namespace autoshop.Server.Controllers
                     p.CodigoBarras.Contains(busqueda));
 
             if (categoriaId.HasValue)
-                query = query.Where(p => p.CategoriaId == categoriaId.Value);
+                query = query.Where(p => p.Categorias.Any(c => c.Id == categoriaId.Value));
 
             var total = await query.CountAsync();
 
@@ -57,8 +57,8 @@ namespace autoshop.Server.Controllers
                     p.VisibleWeb,
                     p.ImagenUrl,
                     p.Activo,
-                    p.CategoriaId,
-                    CategoriaNombre = p.Categoria.Nombre,
+                    Categorias = p.Categorias.Select(c => new { c.Id, c.Nombre }),
+                    CategoriaNombre = string.Join(", ", p.Categorias.Select(c => c.Nombre)),
                     StockActual = p.Inventario != null ? p.Inventario.StockActual : 0,
                     StockMinimo = p.Inventario != null ? p.Inventario.StockMinimo : 0
                 })
@@ -71,7 +71,7 @@ namespace autoshop.Server.Controllers
         public async Task<IActionResult> GetPorCodigoBarras(string codigo)
         {
             var producto = await _context.Productos
-                .Include(p => p.Categoria)
+                .Include(p => p.Categorias)
                 .Include(p => p.Inventario)
                 .Where(p => p.Activo && p.CodigoBarras == codigo)
                 .Select(p => new
@@ -84,8 +84,8 @@ namespace autoshop.Server.Controllers
                     p.PrecioVenta,
                     p.DescuentoPct,
                     p.ImagenUrl,
-                    p.CategoriaId,
-                    CategoriaNombre = p.Categoria.Nombre,
+                    Categorias = p.Categorias.Select(c => new { c.Id, c.Nombre }),
+                    CategoriaNombre = string.Join(", ", p.Categorias.Select(c => c.Nombre)),
                     StockActual = p.Inventario != null ? p.Inventario.StockActual : 0
                 })
                 .FirstOrDefaultAsync();
@@ -100,9 +100,25 @@ namespace autoshop.Server.Controllers
         public async Task<IActionResult> GetProducto(Guid id)
         {
             var producto = await _context.Productos
-                .Include(p => p.Categoria)
                 .Include(p => p.Inventario)
-                .FirstOrDefaultAsync(p => p.Id == id);
+                .Where(p => p.Id == id)
+                .Select(p => new
+                {
+                    p.Id,
+                    p.CodigoBarras,
+                    p.Nombre,
+                    p.Descripcion,
+                    p.PrecioCompra,
+                    p.PrecioVenta,
+                    p.DescuentoPct,
+                    p.VisibleWeb,
+                    p.ImagenUrl,
+                    p.Activo,
+                    Categorias = p.Categorias.Select(c => new { c.Id, c.Nombre }),
+                    StockActual = p.Inventario != null ? p.Inventario.StockActual : 0,
+                    StockMinimo = p.Inventario != null ? p.Inventario.StockMinimo : 0
+                })
+                .FirstOrDefaultAsync();
 
             if (producto == null) return NotFound();
             return Ok(producto);
@@ -111,11 +127,20 @@ namespace autoshop.Server.Controllers
         [HttpPost]
         public async Task<IActionResult> PostProducto(ProductoCreateDto dto)
         {
+            if (dto.CategoriaIds == null || dto.CategoriaIds.Count == 0)
+                return BadRequest(new { mensaje = "Debe seleccionar al menos una categoría." });
+
             var existe = await _context.Productos
                 .AnyAsync(p => p.CodigoBarras == dto.CodigoBarras && p.Activo);
 
             if (existe)
                 return BadRequest(new { mensaje = "Ya existe un producto con ese código de barras." });
+
+            var categorias = await _context.Categorias
+                .Where(c => dto.CategoriaIds.Contains(c.Id)).ToListAsync();
+
+            if (categorias.Count != dto.CategoriaIds.Distinct().Count())
+                return BadRequest(new { mensaje = "Una o más categorías seleccionadas no son válidas." });
 
             var producto = new Producto
             {
@@ -126,7 +151,7 @@ namespace autoshop.Server.Controllers
                 PrecioCompra = dto.PrecioCompra,
                 PrecioVenta = dto.PrecioVenta,
                 DescuentoPct = dto.DescuentoPct,
-                CategoriaId = dto.CategoriaId,
+                Categorias = categorias,
                 VisibleWeb = dto.VisibleWeb,
                 ImagenUrl = dto.ImagenUrl,
                 Activo = true
@@ -164,14 +189,25 @@ namespace autoshop.Server.Controllers
         [HttpPut("{id}")]
         public async Task<IActionResult> PutProducto(Guid id, ProductoUpdateDto dto)
         {
-            var producto = await _context.Productos.FindAsync(id);
+            var producto = await _context.Productos
+                .Include(p => p.Categorias)
+                .FirstOrDefaultAsync(p => p.Id == id);
             if (producto == null) return NotFound();
+
+            if (dto.CategoriaIds == null || dto.CategoriaIds.Count == 0)
+                return BadRequest(new { mensaje = "Debe seleccionar al menos una categoría." });
 
             var existe = await _context.Productos
                 .AnyAsync(p => p.CodigoBarras == dto.CodigoBarras && p.Id != id && p.Activo);
 
             if (existe)
                 return BadRequest(new { mensaje = "Ya existe otro producto con ese código de barras." });
+
+            var categorias = await _context.Categorias
+                .Where(c => dto.CategoriaIds.Contains(c.Id)).ToListAsync();
+
+            if (categorias.Count != dto.CategoriaIds.Distinct().Count())
+                return BadRequest(new { mensaje = "Una o más categorías seleccionadas no son válidas." });
 
             // Si cambia la imagen, eliminar la anterior del servidor
             if (!string.IsNullOrEmpty(producto.ImagenUrl) && producto.ImagenUrl != dto.ImagenUrl)
@@ -185,7 +221,8 @@ namespace autoshop.Server.Controllers
             producto.PrecioCompra = dto.PrecioCompra;
             producto.PrecioVenta = dto.PrecioVenta;
             producto.DescuentoPct = dto.DescuentoPct;
-            producto.CategoriaId = dto.CategoriaId;
+            producto.Categorias.Clear();
+            foreach (var c in categorias) producto.Categorias.Add(c);
             producto.VisibleWeb = dto.VisibleWeb;
             producto.ImagenUrl = dto.ImagenUrl;
 
@@ -240,7 +277,7 @@ namespace autoshop.Server.Controllers
         public decimal PrecioCompra { get; set; }
         public decimal PrecioVenta { get; set; }
         public decimal DescuentoPct { get; set; }
-        public Guid CategoriaId { get; set; }
+        public List<Guid> CategoriaIds { get; set; } = new();
         public bool VisibleWeb { get; set; } = true;
         public string? ImagenUrl { get; set; }
         public int StockInicial { get; set; }
@@ -255,7 +292,7 @@ namespace autoshop.Server.Controllers
         public decimal PrecioCompra { get; set; }
         public decimal PrecioVenta { get; set; }
         public decimal DescuentoPct { get; set; }
-        public Guid CategoriaId { get; set; }
+        public List<Guid> CategoriaIds { get; set; } = new();
         public bool VisibleWeb { get; set; } = true;
         public string? ImagenUrl { get; set; }
         public int StockMinimo { get; set; }

@@ -20,8 +20,7 @@ interface Producto {
     visibleWeb: boolean
     imagenUrl?: string
     activo: boolean
-    categoriaId: string
-    categoriaNombre: string
+    categorias: Categoria[]
     stockActual: number
     stockMinimo: number
 }
@@ -41,7 +40,7 @@ interface ProductoForm {
     precioCompra: string
     precioVenta: string
     descuentoPct: string
-    categoriaId: string
+    categoriaIds: string[]
     visibleWeb: boolean
     stockInicial: string
     stockMinimo: string
@@ -54,7 +53,7 @@ const formVacio: ProductoForm = {
     precioCompra: '',
     precioVenta: '',
     descuentoPct: '0',
-    categoriaId: '',
+    categoriaIds: [],
     visibleWeb: true,
     stockInicial: '0',
     stockMinimo: '0'
@@ -123,6 +122,73 @@ function SelectBuscable({ opciones, valor, onChange, placeholder }: {
     )
 }
 
+function MultiSelectBuscable({ opciones, valor, onChange, placeholder }: {
+    opciones: { id: string, nombre: string }[]
+    valor: string[]
+    onChange: (ids: string[]) => void
+    placeholder: string
+}) {
+    const [busq, setBusq] = useState('')
+    const [abierto, setAbierto] = useState(false)
+    const ref = useRef<HTMLDivElement>(null)
+    const filtradas = opciones.filter(o => o.nombre.toLowerCase().includes(busq.toLowerCase()))
+    const seleccionadas = opciones.filter(o => valor.includes(o.id))
+
+    useEffect(() => {
+        const handleClick = (e: MouseEvent) => {
+            if (ref.current && !ref.current.contains(e.target as Node)) {
+                setAbierto(false); setBusq('')
+            }
+        }
+        document.addEventListener('mousedown', handleClick)
+        return () => document.removeEventListener('mousedown', handleClick)
+    }, [])
+
+    const toggle = (id: string) => {
+        onChange(valor.includes(id) ? valor.filter(v => v !== id) : [...valor, id])
+    }
+    const quitar = (id: string) => onChange(valor.filter(v => v !== id))
+
+    return (
+        <div ref={ref} style={{ position: 'relative' }}>
+            <div className="form-control"
+                style={{ cursor: 'pointer', minHeight: '42px', display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center', padding: '6px 10px' }}
+                onClick={() => { setAbierto(!abierto); setBusq('') }}>
+                {seleccionadas.length === 0 && <span style={{ color: 'var(--text-muted)' }}>{placeholder}</span>}
+                {seleccionadas.map(o => (
+                    <span key={o.id} style={{ background: 'var(--primary-light)', color: 'var(--primary-dark)', fontSize: '12px', fontWeight: 600, padding: '3px 8px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        {o.nombre}
+                        <i className="fas fa-times" style={{ cursor: 'pointer', fontSize: '10px' }}
+                            onClick={e => { e.stopPropagation(); quitar(o.id) }} />
+                    </span>
+                ))}
+            </div>
+            {abierto && (
+                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'white', border: '1px solid var(--border)', borderRadius: '8px', boxShadow: '0 4px 16px rgba(0,0,0,0.12)', zIndex: 99999, maxHeight: '240px', overflow: 'hidden' }}>
+                    <div style={{ padding: '8px' }}>
+                        <input type="text" className="form-control" placeholder="Buscar..." value={busq}
+                            onChange={e => setBusq(e.target.value)} onClick={e => e.stopPropagation()}
+                            autoFocus style={{ fontSize: '13px' }} />
+                    </div>
+                    <div style={{ overflowY: 'auto', maxHeight: '180px' }}>
+                        {filtradas.length === 0 ? (
+                            <div style={{ padding: '10px 12px', color: 'var(--text-muted)', fontSize: '13px' }}>Sin resultados</div>
+                        ) : filtradas.map(o => (
+                            <label key={o.id} style={{ padding: '10px 12px', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}
+                                onMouseEnter={e => { e.currentTarget.style.background = '#f5f5f5' }}
+                                onMouseLeave={e => { e.currentTarget.style.background = 'white' }}>
+                                <input type="checkbox" checked={valor.includes(o.id)} onChange={() => toggle(o.id)}
+                                    style={{ accentColor: 'var(--primary)', cursor: 'pointer' }} />
+                                {o.nombre}
+                            </label>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    )
+}
+
 export default function Productos() {
     const [result, setResult] = useState<PaginatedResult>({ datos: [], total: 0, pagina: 1, tamano: 25, totalPaginas: 0 })
     const [loading, setLoading] = useState(true)
@@ -182,7 +248,7 @@ export default function Productos() {
                 precioCompra: producto.precioCompra.toString(),
                 precioVenta: producto.precioVenta.toString(),
                 descuentoPct: producto.descuentoPct.toString(),
-                categoriaId: producto.categoriaId,
+                categoriaIds: producto.categorias.map(c => c.id),
                 visibleWeb: producto.visibleWeb,
                 stockInicial: producto.stockActual.toString(),
                 stockMinimo: producto.stockMinimo.toString()
@@ -251,7 +317,7 @@ export default function Productos() {
     const validar = (): boolean => {
         if (!form.codigoBarras.trim()) { toast.error('El código de barras es obligatorio'); return false }
         if (!form.nombre.trim()) { toast.error('El nombre del producto es obligatorio'); return false }
-        if (!form.categoriaId) { toast.error('Debe seleccionar una categoría'); return false }
+        if (form.categoriaIds.length === 0) { toast.error('Debe seleccionar al menos una categoría'); return false }
         const compra = Number(num(form.precioCompra))
         const venta = Number(num(form.precioVenta))
         if (!compra || compra <= 0) { toast.error('El precio de compra debe ser mayor a 0'); return false }
@@ -283,7 +349,7 @@ export default function Productos() {
                 precioCompra: Number(num(form.precioCompra)),
                 precioVenta: Number(num(form.precioVenta)),
                 descuentoPct: Number(form.descuentoPct),
-                categoriaId: form.categoriaId,
+                categoriaIds: form.categoriaIds,
                 visibleWeb: form.visibleWeb,
                 stockInicial: Number(form.stockInicial),
                 stockMinimo: Number(form.stockMinimo),
@@ -397,7 +463,7 @@ export default function Productos() {
                                         <th style={{ width: '50px' }}>Img</th>
                                         <th>Código</th>
                                         <th>Nombre</th>
-                                        <th>Categoría</th>
+                                        <th>Categorías</th>
                                         <th>P. Compra</th>
                                         <th>P. Venta</th>
                                         <th>Desc.</th>
@@ -429,7 +495,15 @@ export default function Productos() {
                                             </td>
                                             <td><span style={{ fontFamily: 'monospace', fontSize: '12px', background: 'var(--primary-light)', padding: '2px 6px', borderRadius: '4px' }}>{p.codigoBarras}</span></td>
                                             <td style={{ fontWeight: 600 }}>{p.nombre}</td>
-                                            <td><span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{p.categoriaNombre}</span></td>
+                                            <td>
+                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                                    {p.categorias.map(c => (
+                                                        <span key={c.id} style={{ fontSize: '11px', background: 'var(--primary-light)', color: 'var(--primary-dark)', padding: '2px 8px', borderRadius: '10px', fontWeight: 600 }}>
+                                                            {c.nombre}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </td>
                                             <td>₲ {p.precioCompra.toLocaleString('es-PY')}</td>
                                             <td style={{ color: 'var(--primary-dark)', fontWeight: 600 }}>₲ {p.precioVenta.toLocaleString('es-PY')}</td>
                                             <td>
@@ -516,7 +590,13 @@ export default function Productos() {
                                 </div>
                                 <div className="card-body d-flex flex-column" style={{ padding: '14px' }}>
                                     <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>Cód: {p.codigoBarras}</span>
-                                    <span style={{ fontSize: '11px', color: 'var(--primary-dark)', marginBottom: '4px' }}>{p.categoriaNombre}</span>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '4px' }}>
+                                        {p.categorias.map(c => (
+                                            <span key={c.id} style={{ fontSize: '10px', background: 'var(--primary-light)', color: 'var(--primary-dark)', padding: '2px 6px', borderRadius: '8px', fontWeight: 600 }}>
+                                                {c.nombre}
+                                            </span>
+                                        ))}
+                                    </div>
                                     <h6 style={{ fontWeight: 700, margin: '0 0 4px', fontSize: '14px' }}>{p.nombre}</h6>
                                     {p.descuentoPct > 0 ? (
                                         <div>
@@ -617,10 +697,10 @@ export default function Productos() {
                                 </div>
                                 <div className="col-md-6 mb-3">
                                     <label style={{ fontWeight: 600, fontSize: '14px', marginBottom: '6px', display: 'block' }}>
-                                        Categoría <span style={{ color: 'var(--secondary)' }}>*</span>
+                                        Categorías <span style={{ color: 'var(--secondary)' }}>*</span>
                                     </label>
-                                    <SelectBuscable opciones={categorias} valor={form.categoriaId}
-                                        onChange={id => setForm({ ...form, categoriaId: id })} placeholder="Seleccionar categoría..." />
+                                    <MultiSelectBuscable opciones={categorias} valor={form.categoriaIds}
+                                        onChange={ids => setForm({ ...form, categoriaIds: ids })} placeholder="Seleccionar categorías..." />
                                 </div>
 
                                 {/* Nombre */}

@@ -26,7 +26,7 @@ namespace autoshop.Server.Controllers
         {
             var query = _context.Productos
                 .Include(p => p.Inventario)
-                .Include(p => p.Categoria)
+                .Include(p => p.Categorias)
                 .Where(p => p.Activo)
                 .AsQueryable();
 
@@ -51,7 +51,7 @@ namespace autoshop.Server.Controllers
                     p.Id,
                     p.CodigoBarras,
                     p.Nombre,
-                    CategoriaNombre = p.Categoria.Nombre,
+                    CategoriaNombre = string.Join(", ", p.Categorias.Select(c => c.Nombre)),
                     p.ImagenUrl,
                     StockActual = p.Inventario != null ? p.Inventario.StockActual : 0,
                     StockMinimo = p.Inventario != null ? p.Inventario.StockMinimo : 0,

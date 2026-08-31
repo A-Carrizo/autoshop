@@ -42,9 +42,9 @@ namespace autoshop.Server.Data
                 e.Property(x => x.PrecioCompra).HasPrecision(18, 2);
                 e.Property(x => x.PrecioVenta).HasPrecision(18, 2);
                 e.Property(x => x.DescuentoPct).HasPrecision(5, 2);
-                e.HasOne(x => x.Categoria)
+                e.HasMany(x => x.Categorias)
                  .WithMany(x => x.Productos)
-                 .HasForeignKey(x => x.CategoriaId);
+                 .UsingEntity(j => j.ToTable("ProductoCategoria"));
             });
 
             // Inventario

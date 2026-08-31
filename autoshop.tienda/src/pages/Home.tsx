@@ -11,7 +11,7 @@ import CarruselPromociones from '../components/CarruselPromociones'
 interface Producto {
     id: string; nombre: string; descripcion: string | null
     precioVenta: number; precioOriginal: number; descuentoPct: number
-    imagenUrl: string | null; categoriaId: string; categoriaNombre: string
+    imagenUrl: string | null; categorias: Categoria[]
     enStock: boolean; stockActual: number
 }
 
@@ -267,6 +267,15 @@ export default function Home() {
                                         </div>
                                     </Link>
                                     <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', flex: 1 }}>
+                                        {p.categorias.length > 0 && (
+                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '6px' }}>
+                                                {p.categorias.map(c => (
+                                                    <span key={c.id} style={{ fontSize: '10px', background: '#fff0f0', color: COL.primary, padding: '2px 6px', borderRadius: '8px', fontWeight: 600 }}>
+                                                        {c.nombre}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
                                         <Link to={`/producto/${p.id}`} style={{ textDecoration: 'none' }}>
                                             <p style={{ color: '#2d3748', fontSize: '13px', margin: '0 0 8px', lineHeight: 1.4, minHeight: '36px', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                                                 {p.nombre}

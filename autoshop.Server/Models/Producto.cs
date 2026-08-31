@@ -3,7 +3,6 @@
     public class Producto
     {
         public Guid Id { get; set; }
-        public Guid CategoriaId { get; set; }
         public string CodigoBarras { get; set; } = string.Empty;
         public string Nombre { get; set; } = string.Empty;
         public string? Descripcion { get; set; }
@@ -14,7 +13,7 @@
         public string? ImagenUrl { get; set; }
         public bool Activo { get; set; } = true;
 
-        public Categoria Categoria { get; set; } = null!;
+        public ICollection<Categoria> Categorias { get; set; } = new List<Categoria>();
         public Inventario? Inventario { get; set; }
         public ICollection<VentaDetalle> VentaDetalles { get; set; } = new List<VentaDetalle>();
         public ICollection<MovimientoInventario> Movimientos { get; set; } = new List<MovimientoInventario>();

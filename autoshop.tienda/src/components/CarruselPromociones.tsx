@@ -85,7 +85,7 @@ export default function CarruselPromociones() {
             <div style={{ position: 'relative', height: '280px', overflow: 'hidden', background: '#1a1a1a', borderRadius: '16px', margin: '0 32px' }}>
                 {p.imagenUrl ? (
                     <img key={p.id} src={`${API.imagenesBase}${p.imagenUrl}`} alt={p.nombre}
-                        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.55, transition: 'opacity 0.5s ease' }} />
+                        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', opacity: 0.55, transition: 'opacity 0.5s ease' }} />
                 ) : (
                     <div style={{ position: 'absolute', inset: 0, background: '#111' }} />
                 )}

@@ -32,7 +32,7 @@ export default function GaleriaImagenes({ imagenes, nombreProducto }: Props) {
         <div>
             <div style={{ position: 'relative', background: '#f5f5f5', borderRadius: '12px', height: '420px', overflow: 'hidden' }}>
                 <img src={`${API.imagenesBase}${imagenes[idx]}`} alt={nombreProducto}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                    style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
                 {imagenes.length > 1 && (
                     <>
                         <button onClick={anterior} style={{ ...btnFlecha, left: '12px' }}
@@ -54,9 +54,9 @@ export default function GaleriaImagenes({ imagenes, nombreProducto }: Props) {
                         <button key={url} onClick={() => setIdx(i)}
                             style={{
                                 width: '64px', height: '64px', borderRadius: '8px', overflow: 'hidden', padding: 0, cursor: 'pointer',
-                                border: i === idx ? '2px solid #CC0000' : '2px solid transparent', background: 'none', flexShrink: 0
+                                border: i === idx ? '2px solid #CC0000' : '2px solid transparent', background: '#f5f5f5', flexShrink: 0
                             }}>
-                            <img src={`${API.imagenesBase}${url}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            <img src={`${API.imagenesBase}${url}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                         </button>
                     ))}
                 </div>

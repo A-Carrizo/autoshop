@@ -84,8 +84,14 @@ export default function CarruselPromociones() {
         <div style={{ marginBottom: '32px', marginLeft: '-32px', marginRight: '-32px' }}>
             <div style={{ position: 'relative', height: '280px', overflow: 'hidden', background: '#1a1a1a', borderRadius: '16px', margin: '0 32px' }}>
                 {p.imagenUrl ? (
-                    <img key={p.id} src={`${API.imagenesBase}${p.imagenUrl}`} alt={p.nombre}
-                        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', opacity: 0.55, transition: 'opacity 0.5s ease' }} />
+                    <>
+                        {/* Fondo difuminado: llena todo el cuadro sin importar el recorte, porque va desenfocado */}
+                        <img key={`${p.id}-fondo`} src={`${API.imagenesBase}${p.imagenUrl}`} alt=""
+                            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(35px) brightness(0.5)', transform: 'scale(1.2)', transition: 'opacity 0.5s ease' }} />
+                        {/* Imagen nitida y completa, sin recortar, superpuesta sobre el fondo */}
+                        <img key={`${p.id}-nitida`} src={`${API.imagenesBase}${p.imagenUrl}`} alt={p.nombre}
+                            style={{ position: 'absolute', top: '50%', right: '6%', transform: 'translateY(-50%)', width: '42%', height: '80%', objectFit: 'contain', zIndex: 1, transition: 'opacity 0.5s ease' }} />
+                    </>
                 ) : (
                     <div style={{ position: 'absolute', inset: 0, background: '#111' }} />
                 )}

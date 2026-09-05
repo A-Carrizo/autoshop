@@ -10,10 +10,10 @@
         public decimal PrecioVenta { get; set; }
         public decimal DescuentoPct { get; set; } = 0;
         public bool VisibleWeb { get; set; } = true;
-        public string? ImagenUrl { get; set; }
         public bool Activo { get; set; } = true;
 
         public ICollection<Categoria> Categorias { get; set; } = new List<Categoria>();
+        public ICollection<ProductoImagen> Imagenes { get; set; } = new List<ProductoImagen>();
         public Inventario? Inventario { get; set; }
         public ICollection<VentaDetalle> VentaDetalles { get; set; } = new List<VentaDetalle>();
         public ICollection<MovimientoInventario> Movimientos { get; set; } = new List<MovimientoInventario>();

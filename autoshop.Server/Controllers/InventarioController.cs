@@ -52,7 +52,7 @@ namespace autoshop.Server.Controllers
                     p.CodigoBarras,
                     p.Nombre,
                     CategoriaNombre = string.Join(", ", p.Categorias.Select(c => c.Nombre)),
-                    p.ImagenUrl,
+                    ImagenUrl = p.Imagenes.OrderBy(i => i.Orden).Select(i => i.Url).FirstOrDefault(),
                     StockActual = p.Inventario != null ? p.Inventario.StockActual : 0,
                     StockMinimo = p.Inventario != null ? p.Inventario.StockMinimo : 0,
                     UltimaActualizacion = p.Inventario != null ? p.Inventario.UltimaActualizacion : (DateTime?)null

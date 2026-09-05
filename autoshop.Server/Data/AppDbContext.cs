@@ -15,6 +15,7 @@ namespace autoshop.Server.Data
         public DbSet<Devolucion> Devoluciones { get; set; }
         public DbSet<DevolucionDetalle> DevolucionDetalles { get; set; }
         public DbSet<MovimientoInventario> MovimientosInventario { get; set; }
+        public DbSet<ProductoImagen> ProductoImagenes { get; set; }
         public DbSet<Presupuesto> Presupuestos { get; set; }
         public DbSet<PresupuestoDetalle> PresupuestoDetalles { get; set; }
         public DbSet<Cliente> Clientes { get; set; }  // tabla unificada
@@ -121,6 +122,18 @@ namespace autoshop.Server.Data
                 e.HasOne(x => x.Producto)
                  .WithMany(x => x.Movimientos)
                  .HasForeignKey(x => x.ProductoId);
+            });
+
+            // ProductoImagen
+            modelBuilder.Entity<ProductoImagen>(e =>
+            {
+                e.HasKey(x => x.Id);
+                e.Property(x => x.Id).HasDefaultValueSql("gen_random_uuid()");
+                e.Property(x => x.Url).IsRequired().HasMaxLength(500);
+                e.HasOne(x => x.Producto)
+                 .WithMany(x => x.Imagenes)
+                 .HasForeignKey(x => x.ProductoId)
+                 .OnDelete(DeleteBehavior.Cascade);
             });
 
             // Cliente (tabla unificada ERP + tienda)

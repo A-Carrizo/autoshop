@@ -11,6 +11,7 @@ namespace autoshop.Server.Controllers
     {
         private readonly AppDbContext _context;
         private readonly IWebHostEnvironment _env;
+        private const int MAX_IMAGENES = 6;
 
         public ProductosController(AppDbContext context, IWebHostEnvironment env)
         {
@@ -55,7 +56,8 @@ namespace autoshop.Server.Controllers
                     p.PrecioVenta,
                     p.DescuentoPct,
                     p.VisibleWeb,
-                    p.ImagenUrl,
+                    ImagenUrl = p.Imagenes.OrderBy(i => i.Orden).Select(i => i.Url).FirstOrDefault(),
+                    Imagenes = p.Imagenes.OrderBy(i => i.Orden).Select(i => i.Url),
                     p.Activo,
                     Categorias = p.Categorias.Select(c => new { c.Id, c.Nombre }),
                     CategoriaNombre = string.Join(", ", p.Categorias.Select(c => c.Nombre)),
@@ -83,7 +85,8 @@ namespace autoshop.Server.Controllers
                     p.PrecioCompra,
                     p.PrecioVenta,
                     p.DescuentoPct,
-                    p.ImagenUrl,
+                    ImagenUrl = p.Imagenes.OrderBy(i => i.Orden).Select(i => i.Url).FirstOrDefault(),
+                    Imagenes = p.Imagenes.OrderBy(i => i.Orden).Select(i => i.Url),
                     Categorias = p.Categorias.Select(c => new { c.Id, c.Nombre }),
                     CategoriaNombre = string.Join(", ", p.Categorias.Select(c => c.Nombre)),
                     StockActual = p.Inventario != null ? p.Inventario.StockActual : 0
@@ -112,7 +115,8 @@ namespace autoshop.Server.Controllers
                     p.PrecioVenta,
                     p.DescuentoPct,
                     p.VisibleWeb,
-                    p.ImagenUrl,
+                    ImagenUrl = p.Imagenes.OrderBy(i => i.Orden).Select(i => i.Url).FirstOrDefault(),
+                    Imagenes = p.Imagenes.OrderBy(i => i.Orden).Select(i => i.Url),
                     p.Activo,
                     Categorias = p.Categorias.Select(c => new { c.Id, c.Nombre }),
                     StockActual = p.Inventario != null ? p.Inventario.StockActual : 0,
@@ -129,6 +133,9 @@ namespace autoshop.Server.Controllers
         {
             if (dto.CategoriaIds == null || dto.CategoriaIds.Count == 0)
                 return BadRequest(new { mensaje = "Debe seleccionar al menos una categoría." });
+
+            if (dto.ImagenUrls != null && dto.ImagenUrls.Count > MAX_IMAGENES)
+                return BadRequest(new { mensaje = $"No se pueden cargar más de {MAX_IMAGENES} imágenes por producto." });
 
             var existe = await _context.Productos
                 .AnyAsync(p => p.CodigoBarras == dto.CodigoBarras && p.Activo);
@@ -152,8 +159,13 @@ namespace autoshop.Server.Controllers
                 PrecioVenta = dto.PrecioVenta,
                 DescuentoPct = dto.DescuentoPct,
                 Categorias = categorias,
+                Imagenes = (dto.ImagenUrls ?? new List<string>()).Select((url, idx) => new ProductoImagen
+                {
+                    Id = Guid.NewGuid(),
+                    Url = url,
+                    Orden = idx
+                }).ToList(),
                 VisibleWeb = dto.VisibleWeb,
-                ImagenUrl = dto.ImagenUrl,
                 Activo = true
             };
 
@@ -191,11 +203,15 @@ namespace autoshop.Server.Controllers
         {
             var producto = await _context.Productos
                 .Include(p => p.Categorias)
+                .Include(p => p.Imagenes)
                 .FirstOrDefaultAsync(p => p.Id == id);
             if (producto == null) return NotFound();
 
             if (dto.CategoriaIds == null || dto.CategoriaIds.Count == 0)
                 return BadRequest(new { mensaje = "Debe seleccionar al menos una categoría." });
+
+            if (dto.ImagenUrls != null && dto.ImagenUrls.Count > MAX_IMAGENES)
+                return BadRequest(new { mensaje = $"No se pueden cargar más de {MAX_IMAGENES} imágenes por producto." });
 
             var existe = await _context.Productos
                 .AnyAsync(p => p.CodigoBarras == dto.CodigoBarras && p.Id != id && p.Activo);
@@ -209,11 +225,11 @@ namespace autoshop.Server.Controllers
             if (categorias.Count != dto.CategoriaIds.Distinct().Count())
                 return BadRequest(new { mensaje = "Una o más categorías seleccionadas no son válidas." });
 
-            // Si cambia la imagen, eliminar la anterior del servidor
-            if (!string.IsNullOrEmpty(producto.ImagenUrl) && producto.ImagenUrl != dto.ImagenUrl)
-            {
-                EliminarImagenFisica(producto.ImagenUrl);
-            }
+            // Elimina del servidor los archivos de las imagenes que ya no estan en la lista nueva
+            var urlsNuevas = dto.ImagenUrls ?? new List<string>();
+            var urlsEliminadas = producto.Imagenes.Select(i => i.Url).Except(urlsNuevas).ToList();
+            foreach (var url in urlsEliminadas)
+                EliminarImagenFisica(url);
 
             producto.CodigoBarras = dto.CodigoBarras;
             producto.Nombre = dto.Nombre;
@@ -223,8 +239,18 @@ namespace autoshop.Server.Controllers
             producto.DescuentoPct = dto.DescuentoPct;
             producto.Categorias.Clear();
             foreach (var c in categorias) producto.Categorias.Add(c);
+
+            _context.ProductoImagenes.RemoveRange(producto.Imagenes);
+            var nuevasImagenes = urlsNuevas.Select((url, idx) => new ProductoImagen
+            {
+                Id = Guid.NewGuid(),
+                ProductoId = producto.Id,
+                Url = url,
+                Orden = idx
+            }).ToList();
+            _context.ProductoImagenes.AddRange(nuevasImagenes);
+
             producto.VisibleWeb = dto.VisibleWeb;
-            producto.ImagenUrl = dto.ImagenUrl;
 
             var inventario = await _context.Inventarios.FirstOrDefaultAsync(i => i.ProductoId == id);
             if (inventario != null)
@@ -240,16 +266,18 @@ namespace autoshop.Server.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteProducto(Guid id)
         {
-            var producto = await _context.Productos.FindAsync(id);
+            var producto = await _context.Productos
+                .Include(p => p.Imagenes)
+                .FirstOrDefaultAsync(p => p.Id == id);
             if (producto == null) return NotFound();
 
             var tieneVentas = await _context.VentaDetalles.AnyAsync(v => v.ProductoId == id);
             if (tieneVentas)
                 return BadRequest(new { mensaje = "No se puede eliminar un producto que tiene ventas registradas." });
 
-            // Eliminar imagen del servidor si existe
-            if (!string.IsNullOrEmpty(producto.ImagenUrl))
-                EliminarImagenFisica(producto.ImagenUrl);
+            // Eliminar todas las imagenes del servidor
+            foreach (var img in producto.Imagenes)
+                EliminarImagenFisica(img.Url);
 
             _context.Productos.Remove(producto);
             await _context.SaveChangesAsync();
@@ -279,7 +307,7 @@ namespace autoshop.Server.Controllers
         public decimal DescuentoPct { get; set; }
         public List<Guid> CategoriaIds { get; set; } = new();
         public bool VisibleWeb { get; set; } = true;
-        public string? ImagenUrl { get; set; }
+        public List<string> ImagenUrls { get; set; } = new();
         public int StockInicial { get; set; }
         public int StockMinimo { get; set; }
     }
@@ -294,7 +322,7 @@ namespace autoshop.Server.Controllers
         public decimal DescuentoPct { get; set; }
         public List<Guid> CategoriaIds { get; set; } = new();
         public bool VisibleWeb { get; set; } = true;
-        public string? ImagenUrl { get; set; }
+        public List<string> ImagenUrls { get; set; } = new();
         public int StockMinimo { get; set; }
     }
 }

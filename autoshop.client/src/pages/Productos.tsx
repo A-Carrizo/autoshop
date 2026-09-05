@@ -19,6 +19,7 @@ interface Producto {
     descuentoPct: number
     visibleWeb: boolean
     imagenUrl?: string
+    imagenes: string[]
     activo: boolean
     categorias: Categoria[]
     stockActual: number
@@ -201,12 +202,11 @@ export default function Productos() {
     const [editando, setEditando] = useState<Producto | null>(null)
     const [form, setForm] = useState<ProductoForm>(formVacio)
     const [guardando, setGuardando] = useState(false)
-    const [previewImagen, setPreviewImagen] = useState<string>('')
     const [confirmModal, setConfirmModal] = useState<{ show: boolean, id: string }>({ show: false, id: '' })
     const fileInputRef = useRef<HTMLInputElement>(null)
-    const imagenUrlRef = useRef<string>('')
-    const archivoRef = useRef<File | null>(null)
-    const [tieneArchivoNuevo, setTieneArchivoNuevo] = useState(false)
+    const [imagenesExistentes, setImagenesExistentes] = useState<string[]>([])
+    const [archivosNuevos, setArchivosNuevos] = useState<{ file: File, previewUrl: string }[]>([])
+    const MAX_IMAGENES = 6
 
     const cargarProductos = async (pag = pagina, busq = busqueda, catId = categoriaFiltro) => {
         try {
@@ -253,51 +253,66 @@ export default function Productos() {
                 stockInicial: producto.stockActual.toString(),
                 stockMinimo: producto.stockMinimo.toString()
             })
-            imagenUrlRef.current = producto.imagenUrl || ''
-            setPreviewImagen(producto.imagenUrl ? `${API.imagenesBase}${producto.imagenUrl}` : '')
+            setImagenesExistentes(producto.imagenes ?? [])
         } else {
             setEditando(null)
             setForm(formVacio)
-            imagenUrlRef.current = ''
-            setPreviewImagen('')
+            setImagenesExistentes([])
         }
-        archivoRef.current = null
-        setTieneArchivoNuevo(false)
+        setArchivosNuevos([])
         setShowModal(true)
     }
 
     const cerrarModal = () => {
+        archivosNuevos.forEach(a => URL.revokeObjectURL(a.previewUrl))
         setShowModal(false)
         setEditando(null)
         setForm(formVacio)
-        imagenUrlRef.current = ''
-        archivoRef.current = null
-        setTieneArchivoNuevo(false)
-        setPreviewImagen('')
+        setImagenesExistentes([])
+        setArchivosNuevos([])
         if (fileInputRef.current) fileInputRef.current.value = ''
     }
 
-    // Solo guarda el archivo en memoria, NO lo sube todavía
-    const handleSeleccionarImagen = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const archivo = e.target.files?.[0]
-        if (!archivo) return
+    // Valida y guarda los archivos nuevos en memoria, NO los sube todavía
+    const handleSeleccionarImagenes = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const archivos = Array.from(e.target.files ?? [])
+        if (archivos.length === 0) return
+
+        const espacio = MAX_IMAGENES - imagenesExistentes.length - archivosNuevos.length
+        if (archivos.length > espacio) {
+            toast.error(espacio > 0
+                ? `Solo podés agregar ${espacio} imagen(es) más (máx. ${MAX_IMAGENES})`
+                : `Ya llegaste al máximo de ${MAX_IMAGENES} imágenes`)
+        }
 
         const extensionesPermitidas = ['.jpg', '.jpeg', '.png', '.webp']
-        const extension = '.' + archivo.name.split('.').pop()?.toLowerCase()
-        if (!extensionesPermitidas.includes(extension)) {
-            toast.error('Solo se permiten imágenes JPG, PNG o WEBP')
-            if (fileInputRef.current) fileInputRef.current.value = ''
-            return
-        }
-        if (archivo.size > 5 * 1024 * 1024) {
-            toast.error('La imagen no puede superar los 5MB')
-            if (fileInputRef.current) fileInputRef.current.value = ''
-            return
+        const validos: { file: File, previewUrl: string }[] = []
+        for (const archivo of archivos.slice(0, Math.max(espacio, 0))) {
+            const extension = '.' + archivo.name.split('.').pop()?.toLowerCase()
+            if (!extensionesPermitidas.includes(extension)) {
+                toast.error(`${archivo.name}: solo se permiten imágenes JPG, PNG o WEBP`)
+                continue
+            }
+            if (archivo.size > 5 * 1024 * 1024) {
+                toast.error(`${archivo.name}: no puede superar los 5MB`)
+                continue
+            }
+            validos.push({ file: archivo, previewUrl: URL.createObjectURL(archivo) })
         }
 
-        archivoRef.current = archivo
-        setTieneArchivoNuevo(true)
-        setPreviewImagen(URL.createObjectURL(archivo))
+        setArchivosNuevos(prev => [...prev, ...validos])
+        if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+
+    const quitarImagenExistente = (url: string) =>
+        setImagenesExistentes(prev => prev.filter(u => u !== url))
+
+    const quitarImagenNueva = (previewUrl: string) => {
+        setArchivosNuevos(prev => {
+            const item = prev.find(a => a.previewUrl === previewUrl)
+            if (item) URL.revokeObjectURL(item.previewUrl)
+            return prev.filter(a => a.previewUrl !== previewUrl)
+        })
     }
 
     // Sube la imagen al servidor y retorna la URL
@@ -334,12 +349,12 @@ export default function Productos() {
 
         setGuardando(true)
         try {
-            // Si hay un archivo nuevo, subirlo AHORA al presionar guardar
-            let imagenFinal = imagenUrlRef.current
-            if (archivoRef.current) {
-                const url = await subirImagen(archivoRef.current)
+            // Subir recien ahora los archivos nuevos, en orden
+            const urlsSubidas: string[] = []
+            for (const { file } of archivosNuevos) {
+                const url = await subirImagen(file)
                 if (!url) { setGuardando(false); return }
-                imagenFinal = url
+                urlsSubidas.push(url)
             }
 
             const body = {
@@ -353,7 +368,7 @@ export default function Productos() {
                 visibleWeb: form.visibleWeb,
                 stockInicial: Number(form.stockInicial),
                 stockMinimo: Number(form.stockMinimo),
-                imagenUrl: imagenFinal || null
+                imagenUrls: [...imagenesExistentes, ...urlsSubidas]
             }
 
             const url = editando ? `${API.productos}/${editando.id}` : API.productos
@@ -646,45 +661,59 @@ export default function Productos() {
                         <div style={{ padding: '24px' }}>
                             <div className="row">
 
-                                {/* Imagen */}
+                                {/* Imagenes */}
                                 <div className="col-12 mb-4">
-                                    <label style={{ fontWeight: 600, fontSize: '14px', marginBottom: '10px', display: 'block' }}>Imagen del producto</label>
-                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '20px' }}>
-                                        <div style={{ width: '160px', height: '160px', background: 'var(--primary-light)', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0, border: '2px solid var(--border)' }}>
-                                            {previewImagen ? (
-                                                <img src={previewImagen} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '8px' }} />
-                                            ) : (
-                                                <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
-                                                    <i className="fas fa-image fa-3x" style={{ color: 'var(--primary)', opacity: 0.4, marginBottom: '8px', display: 'block' }}></i>
-                                                    <small>Sin imagen</small>
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div style={{ paddingTop: '4px' }}>
-                                            <input type="file" ref={fileInputRef} accept=".jpg,.jpeg,.png,.webp"
-                                                onChange={handleSeleccionarImagen} style={{ display: 'none' }} />
-                                            <button className="btn" onClick={() => fileInputRef.current?.click()}
-                                                style={{ background: 'var(--primary)', color: 'white', border: 'none', marginBottom: '8px', display: 'block', padding: '8px 16px', borderRadius: '8px', fontSize: '14px' }}>
-                                                {previewImagen
-                                                    ? <><i className="fas fa-sync mr-2"></i>Cambiar imagen</>
-                                                    : <><i className="fas fa-image mr-2"></i>Seleccionar imagen</>
-                                                }
+                                    <label style={{ fontWeight: 600, fontSize: '14px', marginBottom: '10px', display: 'block' }}>
+                                        Imágenes del producto
+                                        <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: '12px', marginLeft: '8px' }}>
+                                            {imagenesExistentes.length + archivosNuevos.length}/{MAX_IMAGENES}
+                                        </span>
+                                    </label>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                                        {imagenesExistentes.map((url, idx) => (
+                                            <div key={url} style={{ position: 'relative', width: '90px', height: '90px', background: 'var(--primary-light)', borderRadius: '10px', overflow: 'hidden', border: '2px solid var(--border)' }}>
+                                                <img src={`${API.imagenesBase}${url}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                {idx === 0 && (
+                                                    <span style={{ position: 'absolute', bottom: '2px', left: '2px', right: '2px', background: 'rgba(0,0,0,0.6)', color: 'white', fontSize: '9px', fontWeight: 700, textAlign: 'center', borderRadius: '4px', padding: '1px 0' }}>
+                                                        PORTADA
+                                                    </span>
+                                                )}
+                                                <button type="button" onClick={() => quitarImagenExistente(url)}
+                                                    style={{ position: 'absolute', top: '2px', right: '2px', width: '20px', height: '20px', borderRadius: '50%', background: 'rgba(0,0,0,0.6)', color: 'white', border: 'none', cursor: 'pointer', fontSize: '11px', lineHeight: 1 }}>
+                                                    ✕
+                                                </button>
+                                            </div>
+                                        ))}
+                                        {archivosNuevos.map((a, idx) => (
+                                            <div key={a.previewUrl} style={{ position: 'relative', width: '90px', height: '90px', background: 'var(--primary-light)', borderRadius: '10px', overflow: 'hidden', border: '2px solid var(--border)' }}>
+                                                <img src={a.previewUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                {imagenesExistentes.length === 0 && idx === 0 && (
+                                                    <span style={{ position: 'absolute', bottom: '2px', left: '2px', right: '2px', background: 'rgba(0,0,0,0.6)', color: 'white', fontSize: '9px', fontWeight: 700, textAlign: 'center', borderRadius: '4px', padding: '1px 0' }}>
+                                                        PORTADA
+                                                    </span>
+                                                )}
+                                                <span style={{ position: 'absolute', bottom: '2px', left: '2px', background: 'var(--primary)', color: 'white', fontSize: '8px', fontWeight: 700, borderRadius: '4px', padding: '1px 4px' }}>
+                                                    NUEVA
+                                                </span>
+                                                <button type="button" onClick={() => quitarImagenNueva(a.previewUrl)}
+                                                    style={{ position: 'absolute', top: '2px', right: '2px', width: '20px', height: '20px', borderRadius: '50%', background: 'rgba(0,0,0,0.6)', color: 'white', border: 'none', cursor: 'pointer', fontSize: '11px', lineHeight: 1 }}>
+                                                    ✕
+                                                </button>
+                                            </div>
+                                        ))}
+                                        {imagenesExistentes.length + archivosNuevos.length < MAX_IMAGENES && (
+                                            <button type="button" onClick={() => fileInputRef.current?.click()}
+                                                style={{ width: '90px', height: '90px', borderRadius: '10px', border: '2px dashed var(--border)', background: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                                                <i className="fas fa-plus" style={{ fontSize: '18px' }}></i>
+                                                <small style={{ fontSize: '11px' }}>Agregar</small>
                                             </button>
-                                            <small style={{ color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>JPG, PNG o WEBP — máx. 5MB</small>
-                                            {tieneArchivoNuevo && (
-                                                <small style={{ color: 'var(--primary-dark)' }}>
-                                                    <i className="fas fa-clock mr-1"></i>
-                                                    Se subirá al guardar
-                                                </small>
-                                            )}
-                                            {!tieneArchivoNuevo && previewImagen && (
-                                                <small style={{ color: '#2e7d32' }}>
-                                                    <i className="fas fa-check-circle mr-1"></i>
-                                                    Imagen guardada
-                                                </small>
-                                            )}
-                                        </div>
+                                        )}
+                                        <input type="file" ref={fileInputRef} accept=".jpg,.jpeg,.png,.webp" multiple
+                                            onChange={handleSeleccionarImagenes} style={{ display: 'none' }} />
                                     </div>
+                                    <small style={{ color: 'var(--text-muted)', display: 'block', marginTop: '8px' }}>
+                                        JPG, PNG o WEBP — máx. 5MB cada una, hasta {MAX_IMAGENES} imágenes. La primera es la portada.
+                                    </small>
                                 </div>
 
                                 {/* Código y categoría */}

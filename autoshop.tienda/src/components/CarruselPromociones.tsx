@@ -88,9 +88,11 @@ export default function CarruselPromociones() {
                         {/* Fondo difuminado: llena todo el cuadro sin importar el recorte, porque va desenfocado */}
                         <img key={`${p.id}-fondo`} src={`${API.imagenesBase}${p.imagenUrl}`} alt=""
                             style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(35px) brightness(0.5)', transform: 'scale(1.2)', transition: 'opacity 0.5s ease' }} />
-                        {/* Imagen nitida y completa, sin recortar, superpuesta sobre el fondo */}
-                        <img key={`${p.id}-nitida`} src={`${API.imagenesBase}${p.imagenUrl}`} alt={p.nombre}
-                            style={{ position: 'absolute', top: '50%', right: '6%', transform: 'translateY(-50%)', width: '42%', height: '80%', objectFit: 'contain', zIndex: 1, transition: 'opacity 0.5s ease' }} />
+                        {/* Tarjeta blanca con la imagen completa, a proposito (evita que el fondo blanco de la foto quede como un parche feo) */}
+                        <div style={{ position: 'absolute', top: '50%', right: '6%', transform: 'translateY(-50%)', width: '38%', height: '78%', zIndex: 1, background: '#fff', borderRadius: '16px', boxShadow: '0 20px 40px rgba(0,0,0,0.45)', padding: '14px' }}>
+                            <img key={`${p.id}-nitida`} src={`${API.imagenesBase}${p.imagenUrl}`} alt={p.nombre}
+                                style={{ width: '100%', height: '100%', objectFit: 'contain', transition: 'opacity 0.5s ease' }} />
+                        </div>
                     </>
                 ) : (
                     <div style={{ position: 'absolute', inset: 0, background: '#111' }} />

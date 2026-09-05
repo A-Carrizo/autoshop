@@ -84,8 +84,18 @@ namespace autoshop.Server.Controllers
             var topProductos = await _context.VentaDetalles
                 .Include(d => d.Producto).Include(d => d.Venta)
                 .Where(d => d.Venta.Estado == "COMPLETADA" && d.Venta.Fecha >= desdeUtc && d.Venta.Fecha <= hastaUtc)
-                .GroupBy(d => new { d.ProductoId, d.Producto.Nombre, d.Producto.ImagenUrl })
-                .Select(g => new { g.Key.Nombre, g.Key.ImagenUrl, CantidadVendida = g.Sum(d => d.Cantidad), TotalVendido = g.Sum(d => d.Subtotal) })
+                .GroupBy(d => new { d.ProductoId, d.Producto.Nombre })
+                .Select(g => new
+                {
+                    g.Key.Nombre,
+                    ImagenUrl = _context.ProductoImagenes
+                        .Where(i => i.ProductoId == g.Key.ProductoId)
+                        .OrderBy(i => i.Orden)
+                        .Select(i => i.Url)
+                        .FirstOrDefault(),
+                    CantidadVendida = g.Sum(d => d.Cantidad),
+                    TotalVendido = g.Sum(d => d.Subtotal)
+                })
                 .OrderByDescending(x => x.CantidadVendida).Take(5).ToListAsync();
 
             // Métodos de pago del período

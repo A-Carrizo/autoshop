@@ -6,12 +6,13 @@ import Footer from '../components/layout/Footer'
 import { useCarrito } from '../context/CarritoContext'
 import { useIdioma } from '../context/IdiomaContext'
 import { API } from '../config/api'
+import GaleriaImagenes from '../components/GaleriaImagenes'
 
 interface Categoria { id: string; nombre: string }
 
 interface ProductoDetalle {
     id: string; nombre: string; descripcion: string | null; precioVenta: number
-    precioOriginal: number; descuentoPct: number; imagenUrl: string | null
+    precioOriginal: number; descuentoPct: number; imagenes: string[]
     categorias: Categoria[]; enStock: boolean; stockActual: number
 }
 
@@ -47,7 +48,7 @@ export default function DetalleProducto() {
 
     const handleAgregar = () => {
         if (!producto || !producto.enStock) return
-        agregarItem({ productoId: producto.id, nombre: producto.nombre, precioUnitario: producto.precioVenta, imagenUrl: producto.imagenUrl, stockDisponible: producto.stockActual }, cantidad)
+        agregarItem({ productoId: producto.id, nombre: producto.nombre, precioUnitario: producto.precioVenta, imagenUrl: producto.imagenes[0] ?? null, stockDisponible: producto.stockActual }, cantidad)
         toast.success(`${producto.nombre} - ${t.agregarAlCarrito}`)
     }
 
@@ -77,14 +78,10 @@ export default function DetalleProducto() {
                     <i className="fas fa-arrow-left" style={{ marginRight: '6px' }}></i>{t.volverAlCatalogo}
                 </Link>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px', background: '#fff', borderRadius: '16px', padding: '32px', border: `1px solid ${COL.border}` }}>
-                    <div style={{ position: 'relative', background: '#f5f5f5', borderRadius: '12px', minHeight: '380px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                        {producto.imagenUrl ? (
-                            <img src={`${API.imagenesBase}${producto.imagenUrl}`} alt={producto.nombre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        ) : (
-                            <i className="fas fa-image" style={{ fontSize: '60px', color: '#cbd5e0' }}></i>
-                        )}
+                    <div style={{ position: 'relative' }}>
+                        <GaleriaImagenes imagenes={producto.imagenes} nombreProducto={producto.nombre} />
                         {producto.descuentoPct > 0 && (
-                            <span style={{ position: 'absolute', top: '16px', left: '16px', background: COL.primary, color: '#fff', fontSize: '13px', fontWeight: 700, padding: '5px 12px', borderRadius: '8px' }}>-{producto.descuentoPct}% OFF</span>
+                            <span style={{ position: 'absolute', top: '16px', left: '16px', zIndex: 2, background: COL.primary, color: '#fff', fontSize: '13px', fontWeight: 700, padding: '5px 12px', borderRadius: '8px' }}>-{producto.descuentoPct}% OFF</span>
                         )}
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column' }}>

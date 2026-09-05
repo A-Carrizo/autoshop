@@ -56,7 +56,7 @@ namespace autoshop.Server.Controllers
                     PrecioVenta = p.PrecioVenta - (p.PrecioVenta * p.DescuentoPct / 100),
                     PrecioOriginal = p.PrecioVenta,
                     p.DescuentoPct,
-                    p.ImagenUrl,
+                    ImagenUrl = p.Imagenes.OrderBy(i => i.Orden).Select(i => i.Url).FirstOrDefault(),
                     Categorias = p.Categorias.Select(c => new { c.Id, c.Nombre }),
                     EnStock = p.Inventario != null && p.Inventario.StockActual > 0,
                     StockActual = p.Inventario != null ? p.Inventario.StockActual : 0
@@ -81,7 +81,7 @@ namespace autoshop.Server.Controllers
                     PrecioVenta = p.PrecioVenta - (p.PrecioVenta * p.DescuentoPct / 100),
                     PrecioOriginal = p.PrecioVenta,
                     p.DescuentoPct,
-                    p.ImagenUrl,
+                    Imagenes = p.Imagenes.OrderBy(i => i.Orden).Select(i => i.Url),
                     Categorias = p.Categorias.Select(c => new { c.Id, c.Nombre }),
                     EnStock = p.Inventario != null && p.Inventario.StockActual > 0,
                     StockActual = p.Inventario != null ? p.Inventario.StockActual : 0

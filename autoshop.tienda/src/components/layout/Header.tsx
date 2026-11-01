@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useCarrito } from '../../context/CarritoContext'
 import { useIdioma } from '../../context/IdiomaContext'

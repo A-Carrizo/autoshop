@@ -54,11 +54,11 @@ export default function ResetPassword() {
     }
 
     return (
-        <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#f5f5f5' }}>
+        <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--mc-fondo)' }}>
             <HeaderSimple />
-            <main style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 20px' }}>
-                <div style={{ width: '100%', maxWidth: '400px' }}>
-                    <div style={{ background: '#fff', borderRadius: '16px', padding: '36px', border: `1px solid ${COL.border}` }}>
+            <main className="mc-auth">
+                <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
+                    <div className="mc-auth__caja">
                         {exito ? (
                             <div style={{ textAlign: 'center' }}>
                                 <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#f0fff4', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
@@ -69,42 +69,42 @@ export default function ResetPassword() {
                                     Ya podés iniciar sesión con tu nueva contraseña.
                                 </p>
                                 <button onClick={() => navigate('/login', { replace: true })}
-                                    style={{ width: '100%', padding: '13px', background: COL.primary, border: 'none', borderRadius: '8px', color: '#fff', fontWeight: 700, fontSize: '15px', cursor: 'pointer', fontFamily: 'inherit' }}>
+                                    className="mc-btn mc-btn--primario mc-btn--bloque mc-btn--grande">
                                     Ir al login
                                 </button>
                             </div>
                         ) : (
                             <>
                                 <div style={{ marginBottom: '24px' }}>
-                                    <h1 style={{ fontWeight: 700, color: '#1a202c', fontSize: '20px', marginBottom: '4px' }}>Nueva contraseña</h1>
+                                    <h1>Nueva contraseña</h1>
                                     <p style={{ color: COL.muted, fontSize: '13px' }}>Elegí una contraseña segura para tu cuenta.</p>
                                 </div>
                                 <form onSubmit={handleSubmit}>
                                     <div style={{ marginBottom: '14px' }}>
-                                        <label style={{ fontWeight: 600, fontSize: '13px', color: '#2d3748', marginBottom: '6px', display: 'block' }}>Nueva contraseña</label>
+                                        <label className="mc-label">Nueva contraseña</label>
                                         <input type="password" placeholder="Mínimo 6 caracteres" value={password}
                                             onChange={e => handlePassword(e.target.value)} autoFocus
-                                            style={{ width: '100%', padding: '11px 12px', border: `1.5px solid ${errPass ? '#c53030' : COL.border}`, borderRadius: '8px', fontSize: '14px', outline: 'none' }} />
+                                            className={`mc-input${errPass ? ' mc-input--error' : ''}`} />
                                         {errPass && <div style={{ fontSize: '11px', color: '#c53030', marginTop: '3px' }}>
                                             <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>{errPass}
                                         </div>}
                                     </div>
                                     <div style={{ marginBottom: '20px' }}>
-                                        <label style={{ fontWeight: 600, fontSize: '13px', color: '#2d3748', marginBottom: '6px', display: 'block' }}>Confirmar contraseña</label>
+                                        <label className="mc-label">Confirmar contraseña</label>
                                         <input type="password" placeholder="Repetí la contraseña" value={confirmar}
                                             onChange={e => handleConfirmar(e.target.value)}
-                                            style={{ width: '100%', padding: '11px 12px', border: `1.5px solid ${errConfirm ? '#c53030' : COL.border}`, borderRadius: '8px', fontSize: '14px', outline: 'none' }} />
+                                            className={`mc-input${errConfirm ? ' mc-input--error' : ''}`} />
                                         {errConfirm && <div style={{ fontSize: '11px', color: '#c53030', marginTop: '3px' }}>
                                             <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }}></i>{errConfirm}
                                         </div>}
                                     </div>
                                     <button type="submit" disabled={loading || !!errPass || !!errConfirm}
-                                        style={{ width: '100%', padding: '13px', background: loading ? '#a0aec0' : COL.primary, border: 'none', borderRadius: '8px', color: '#fff', fontWeight: 700, fontSize: '15px', cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                                        className="mc-btn mc-btn--primario mc-btn--bloque mc-btn--grande">
                                         {loading ? <><i className="fas fa-spinner fa-spin" style={{ marginRight: '8px' }}></i>Guardando...</> : 'Guardar nueva contraseña'}
                                     </button>
                                 </form>
                                 <p style={{ textAlign: 'center', fontSize: '13px', color: COL.muted, margin: '16px 0 0' }}>
-                                    <Link to="/login" style={{ color: COL.primary, fontWeight: 600, textDecoration: 'none' }}>
+                                    <Link to="/login" className="mc-link">
                                         <i className="fas fa-arrow-left" style={{ marginRight: '4px' }}></i>Volver al login
                                     </Link>
                                 </p>

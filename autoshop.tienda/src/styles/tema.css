@@ -1,0 +1,444 @@
+/*
+ * Tema visual de la tienda MagCar.
+ * Todos los colores, fuentes y medidas compartidas viven aca como variables CSS,
+ * para no repetir valores sueltos en cada componente.
+ * Se importa despues de Bootstrap para poder sobreescribir sus valores base.
+ */
+
+:root {
+    /* Colores de marca */
+    --mc-rojo: #cc0000;
+    --mc-rojo-hover: #a80000;
+    --mc-rojo-suave: #fff0f0;
+    --mc-negro: #0f0f0f;
+    --mc-negro-2: #1c1c1c;
+    --mc-negro-3: #2a2a2a;
+
+    /* Neutros */
+    --mc-fondo: #f4f4f5;
+    --mc-superficie: #ffffff;
+    --mc-borde: #e4e4e7;
+    --mc-texto: #18181b;
+    --mc-texto-2: #3f3f46;
+    --mc-muted: #71717a;
+    --mc-exito: #16a34a;
+
+    /* Tipografia */
+    --mc-fuente: 'Inter', 'Segoe UI', system-ui, sans-serif;
+    --mc-fuente-titulos: 'Archivo', 'Inter', 'Segoe UI', sans-serif;
+
+    /* Medidas */
+    --mc-radio: 10px;
+    --mc-radio-lg: 14px;
+    --mc-ancho-max: 1320px;
+    --mc-gutter: 24px;
+    --mc-header-alto: 68px;
+
+    /* Sombras */
+    --mc-sombra-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+    --mc-sombra: 0 6px 20px rgba(0, 0, 0, 0.08);
+    --mc-sombra-lg: 0 14px 36px rgba(0, 0, 0, 0.16);
+
+    /* Bootstrap toma la fuente y colores base de estas variables */
+    --bs-body-font-family: var(--mc-fuente);
+    --bs-body-color: var(--mc-texto);
+    --bs-body-bg: var(--mc-fondo);
+    --bs-link-color-rgb: 204, 0, 0;
+}
+
+@media (max-width: 767px) {
+    :root {
+        --mc-gutter: 16px;
+    }
+}
+
+body {
+    font-family: var(--mc-fuente);
+    color: var(--mc-texto);
+    background: var(--mc-fondo);
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: var(--mc-fuente-titulos);
+    color: var(--mc-texto);
+}
+
+/* Contenedor centrado con el mismo ancho en todas las paginas */
+.mc-container {
+    width: 100%;
+    max-width: var(--mc-ancho-max);
+    margin: 0 auto;
+    padding-left: var(--mc-gutter);
+    padding-right: var(--mc-gutter);
+}
+
+/* Botones base */
+.mc-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border: none;
+    border-radius: var(--mc-radio);
+    padding: 10px 18px;
+    font-family: var(--mc-fuente);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.mc-btn--primario {
+    background: var(--mc-rojo);
+    color: #fff;
+}
+
+.mc-btn--primario:hover {
+    background: var(--mc-rojo-hover);
+    color: #fff;
+}
+
+.mc-btn--borde {
+    background: transparent;
+    color: var(--mc-texto);
+    border: 1.5px solid var(--mc-texto);
+}
+
+.mc-btn--borde:hover {
+    background: var(--mc-texto);
+    color: #fff;
+}
+
+.mc-btn:disabled {
+    background: #d4d4d8;
+    color: #fff;
+    border-color: transparent;
+    cursor: not-allowed;
+}
+
+/* ---------- Logo ---------- */
+.mc-logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    text-decoration: none;
+    flex-shrink: 0;
+    font-family: var(--mc-fuente-titulos);
+    font-weight: 900;
+    font-style: italic;
+    font-size: 26px;
+    letter-spacing: -0.5px;
+    line-height: 1;
+    color: #fff;
+}
+
+.mc-logo:hover {
+    color: #fff;
+}
+
+.mc-logo__acento {
+    color: var(--mc-rojo);
+}
+
+.mc-logo__icono {
+    font-size: 18px;
+    color: var(--mc-rojo);
+    margin-right: 8px;
+    font-style: normal;
+}
+
+/* ---------- Header ---------- */
+.mc-header {
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    background: var(--mc-negro);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+}
+
+.mc-header__barra {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    min-height: var(--mc-header-alto);
+    padding-top: 10px;
+    padding-bottom: 10px;
+}
+
+.mc-header__simple {
+    justify-content: center;
+}
+
+/* Buscador: input blanco con boton rojo pegado */
+.mc-buscador {
+    flex: 1;
+    display: flex;
+    max-width: 560px;
+    margin: 0 auto;
+    height: 40px;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #fff;
+}
+
+.mc-buscador input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    outline: none;
+    padding: 0 14px;
+    font-size: 14px;
+    color: var(--mc-texto);
+    background: transparent;
+}
+
+.mc-buscador input::placeholder {
+    color: #a1a1aa;
+}
+
+.mc-buscador button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: none;
+    padding: 0 18px;
+    background: var(--mc-rojo);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.mc-buscador button:hover {
+    background: var(--mc-rojo-hover);
+}
+
+.mc-buscador:focus-within {
+    box-shadow: 0 0 0 2px var(--mc-rojo);
+}
+
+/* Acciones de la derecha (categorias, idioma, cuenta, carrito) */
+.mc-header__accion {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    padding: 6px 4px;
+    color: #fff;
+    text-decoration: none;
+    font-size: 13px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.mc-header__accion:hover {
+    color: #fff;
+}
+
+.mc-header__accion:hover .mc-header__icono,
+.mc-header__accion[aria-expanded='true'] .mc-header__icono {
+    color: var(--mc-rojo);
+}
+
+.mc-header__icono {
+    font-size: 20px;
+    color: #fff;
+    transition: color 0.15s ease;
+}
+
+.mc-header__accion--rojo .mc-header__icono {
+    color: var(--mc-rojo);
+}
+
+.mc-header__todos {
+    font-weight: 800;
+    font-size: 14px;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+}
+
+.mc-header__todos .mc-header__icono {
+    font-size: 15px;
+}
+
+.mc-header__texto-doble {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.2;
+    text-align: left;
+}
+
+.mc-header__texto-doble small {
+    font-size: 11px;
+    color: #a1a1aa;
+}
+
+.mc-header__texto-doble strong {
+    font-size: 14px;
+    font-weight: 800;
+}
+
+/* Contador de items sobre el icono del carrito */
+.mc-header__carrito-icono {
+    position: relative;
+}
+
+.mc-header__badge {
+    position: absolute;
+    top: -7px;
+    right: -9px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    border-radius: 9px;
+    background: var(--mc-rojo);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid var(--mc-negro);
+}
+
+/* Selector de idioma */
+.mc-idioma {
+    display: flex;
+    gap: 2px;
+    padding: 2px;
+    border-radius: 6px;
+    background: var(--mc-negro-3);
+    flex-shrink: 0;
+}
+
+.mc-idioma button {
+    border: none;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 11px;
+    font-weight: 700;
+    background: transparent;
+    color: #a1a1aa;
+    cursor: pointer;
+}
+
+.mc-idioma button[aria-pressed='true'] {
+    background: var(--mc-rojo);
+    color: #fff;
+}
+
+/* Menu desplegable de categorias */
+.mc-categorias {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.mc-categorias__menu {
+    position: absolute;
+    top: calc(100% + 12px);
+    left: 0;
+    width: 280px;
+    max-height: 70vh;
+    overflow-y: auto;
+    background: var(--mc-superficie);
+    border-radius: var(--mc-radio);
+    box-shadow: var(--mc-sombra-lg);
+    border-top: 3px solid var(--mc-rojo);
+    padding: 8px;
+    z-index: 1010;
+}
+
+.mc-categorias__titulo {
+    padding: 8px 10px 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: var(--mc-muted);
+}
+
+.mc-categorias__item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 10px;
+    border-radius: 6px;
+    font-size: 14px;
+    color: var(--mc-texto-2);
+    text-decoration: none;
+}
+
+.mc-categorias__item i {
+    font-size: 10px;
+    color: #d4d4d8;
+}
+
+.mc-categorias__item:hover {
+    background: var(--mc-rojo-suave);
+    color: var(--mc-rojo);
+}
+
+.mc-categorias__item:hover i {
+    color: var(--mc-rojo);
+}
+
+.mc-categorias__item--destacado {
+    font-weight: 700;
+    color: var(--mc-rojo);
+    border-top: 1px solid var(--mc-borde);
+    border-radius: 0 0 6px 6px;
+    margin-top: 6px;
+    padding-top: 12px;
+}
+
+/* Tablet: se ocultan textos secundarios */
+@media (max-width: 1099px) {
+    .mc-header__cuenta-texto {
+        display: none;
+    }
+}
+
+/* Celular: el buscador baja a una segunda fila a todo el ancho */
+@media (max-width: 767px) {
+    .mc-header__barra {
+        flex-wrap: wrap;
+        gap: 12px 10px;
+    }
+
+    .mc-logo {
+        font-size: 22px;
+        margin-right: auto;
+    }
+
+    .mc-logo__icono {
+        display: none;
+    }
+
+    .mc-buscador {
+        order: 10;
+        flex-basis: 100%;
+        max-width: none;
+    }
+
+    .mc-buscador button span,
+    .mc-header__todos span,
+    .mc-header__carrito-texto {
+        display: none;
+    }
+
+    /* El menu se ancla al header completo y ocupa todo el ancho */
+    .mc-categorias {
+        position: static;
+    }
+
+    .mc-categorias__menu {
+        top: 100%;
+        left: var(--mc-gutter);
+        right: var(--mc-gutter);
+        width: auto;
+    }
+}

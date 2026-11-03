@@ -14,8 +14,6 @@ interface PedidoDetalleCompleto {
     fechaCancelacion: string | null; motivoCancelacion: string | null; detalles: DetalleItem[]
 }
 
-const COL = { primary: '#CC0000', muted: '#718096', border: '#e0e0e0' }
-
 export default function DetallePedido() {
     const { id } = useParams<{ id: string }>()
     const [pedido, setPedido] = useState<PedidoDetalleCompleto | null>(null)
@@ -23,10 +21,10 @@ export default function DetallePedido() {
     const { t } = useIdioma()
 
     const ESTADOS = {
-        PENDIENTE: { label: t.pendienteConfirmacion, bg: '#fffbeb', color: '#b7791f', icon: 'fa-clock' },
-        CONFIRMADO: { label: t.confirmado, bg: '#ebf8ff', color: '#2b6cb0', icon: 'fa-check-circle' },
-        ENTREGADO: { label: t.entregado, bg: '#f0fff4', color: '#2f855a', icon: 'fa-box' },
-        CANCELADO: { label: t.cancelado, bg: '#fff5f5', color: '#c53030', icon: 'fa-times-circle' },
+        PENDIENTE: { label: t.pendienteConfirmacion, icon: 'fa-clock' },
+        CONFIRMADO: { label: t.confirmado, icon: 'fa-check-circle' },
+        ENTREGADO: { label: t.entregado, icon: 'fa-box' },
+        CANCELADO: { label: t.cancelado, icon: 'fa-times-circle' },
     }
 
     useEffect(() => {
@@ -49,75 +47,82 @@ export default function DetallePedido() {
     const fmt = (n: number) => n.toLocaleString('es-PY')
     const fmtFecha = (f: string) => new Date(f).toLocaleString('es-PY', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' } as Intl.DateTimeFormatOptions)
 
-    if (cargando) return (
-        <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#f5f5f5' }}>
-            <Header /><div style={{ flex: 1, textAlign: 'center', padding: '80px 0', color: COL.muted }}><i className="fas fa-spinner fa-spin" style={{ fontSize: '28px', color: COL.primary }}></i></div><Footer />
-        </div>
-    )
-
-    if (!pedido) return (
-        <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#f5f5f5' }}>
+    const pagina = (contenido: React.ReactNode) => (
+        <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--mc-fondo)' }}>
             <Header />
-            <div style={{ flex: 1, textAlign: 'center', padding: '80px 20px', color: COL.muted }}>
-                <p style={{ fontSize: '15px', marginBottom: '20px' }}>No se encontro este pedido.</p>
-                <Link to="/mis-pedidos" style={{ color: COL.primary, fontWeight: 600, textDecoration: 'none' }}><i className="fas fa-arrow-left" style={{ marginRight: '6px' }}></i>{t.volverAMisPedidos}</Link>
-            </div>
+            <main className="mc-container mc-pagina mc-pagina--angosta" style={{ flex: 1 }}>{contenido}</main>
             <Footer />
         </div>
     )
 
-    const estado = ESTADOS[pedido.estado as keyof typeof ESTADOS] || ESTADOS.PENDIENTE
+    if (cargando) return pagina(
+        <div className="mc-panel" aria-hidden="true">
+            <div className="mc-skeleton" style={{ height: '22px', width: '40%', marginBottom: '10px' }}></div>
+            <div className="mc-skeleton" style={{ height: '12px', width: '25%', marginBottom: '24px' }}></div>
+            <div className="mc-skeleton" style={{ height: '120px' }}></div>
+        </div>
+    )
 
-    return (
-        <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#f5f5f5' }}>
-            <Header />
-            <main style={{ flex: 1, maxWidth: '700px', margin: '0 auto', padding: '28px 32px', width: '100%' }}>
-                <Link to="/mis-pedidos" style={{ color: COL.muted, fontSize: '13px', textDecoration: 'none', display: 'inline-block', marginBottom: '16px' }}>
-                    <i className="fas fa-arrow-left" style={{ marginRight: '6px' }}></i>{t.volverAMisPedidos}
-                </Link>
-                <div style={{ background: '#fff', borderRadius: '16px', border: `1px solid ${COL.border}`, padding: '28px', marginBottom: '20px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-                        <div>
-                            <h1 style={{ fontSize: '18px', fontWeight: 700, color: '#1a202c', margin: '0 0 4px' }}>{pedido.numeroPedido}</h1>
-                            <p style={{ fontSize: '12px', color: COL.muted, margin: 0 }}>{fmtFecha(pedido.fecha)}</p>
-                        </div>
-                        <span style={{ background: estado.bg, color: estado.color, fontSize: '12px', fontWeight: 700, padding: '6px 14px', borderRadius: '20px', whiteSpace: 'nowrap' }}>
-                            <i className={`fas ${estado.icon}`} style={{ marginRight: '6px' }}></i>{estado.label}
-                        </span>
+    if (!pedido) return pagina(
+        <div className="mc-catalogo__vacio">
+            <i className="fas fa-receipt"></i>
+            <strong>No se encontro este pedido.</strong>
+            <Link to="/mis-pedidos" className="mc-btn mc-btn--primario"><i className="fas fa-arrow-left"></i>{t.volverAMisPedidos}</Link>
+        </div>
+    )
+
+    const claveEstado = (pedido.estado in ESTADOS ? pedido.estado : 'PENDIENTE') as keyof typeof ESTADOS
+    const estado = ESTADOS[claveEstado]
+    const datos = [
+        { label: t.direccionDeEntrega, val: pedido.direccionEntrega },
+        { label: t.telefonoDeContacto, val: pedido.clienteTelefono },
+        { label: t.metodoDePagoLabel, val: pedido.metodoPago === 'TRANSFERENCIA' ? t.transferencia : pedido.metodoPago },
+        ...(pedido.notas ? [{ label: t.notas, val: pedido.notas }] : []),
+    ]
+
+    return pagina(
+        <>
+            <Link to="/mis-pedidos" className="mc-volver"><i className="fas fa-arrow-left"></i>{t.volverAMisPedidos}</Link>
+            <div className="mc-panel">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px', marginBottom: '20px' }}>
+                    <div className="mc-titulo-pagina" style={{ marginBottom: 0 }}>
+                        <h1>{pedido.numeroPedido}</h1>
+                        <p>{fmtFecha(pedido.fecha)}</p>
                     </div>
-                    {pedido.estado === 'CANCELADO' && pedido.motivoCancelacion && (
-                        <div style={{ background: '#fff5f5', border: '1px solid #feb2b2', borderRadius: '8px', padding: '12px 16px', fontSize: '13px', color: '#c53030', marginBottom: '16px' }}>
-                            <strong>{t.motivoCancelacion}</strong> {pedido.motivoCancelacion}
-                        </div>
-                    )}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
-                        {[
-                            { label: t.direccionDeEntrega, val: pedido.direccionEntrega },
-                            { label: t.telefonoDeContacto, val: pedido.clienteTelefono },
-                            { label: t.metodoDePagoLabel, val: pedido.metodoPago === 'TRANSFERENCIA' ? t.transferencia : pedido.metodoPago },
-                            pedido.notas ? { label: t.notas, val: pedido.notas } : null,
-                        ].filter(Boolean).map((item: any, i) => (
-                            <div key={i}>
-                                <p style={{ fontSize: '11px', color: COL.muted, fontWeight: 700, textTransform: 'uppercase', margin: '0 0 4px' }}>{item.label}</p>
-                                <p style={{ fontSize: '13px', color: '#2d3748', margin: 0 }}>{item.val || '-'}</p>
-                            </div>
-                        ))}
+                    <span className={`mc-estado mc-estado--${claveEstado}`}>
+                        <i className={`fas ${estado.icon}`}></i>{estado.label}
+                    </span>
+                </div>
+
+                {pedido.estado === 'CANCELADO' && pedido.motivoCancelacion && (
+                    <div className="mc-alerta mc-alerta--error" style={{ marginBottom: '20px' }}>
+                        <i className="fas fa-times-circle"></i>
+                        <span><strong>{t.motivoCancelacion}</strong> {pedido.motivoCancelacion}</span>
                     </div>
-                    <div style={{ borderTop: `1px solid ${COL.border}`, paddingTop: '16px' }}>
-                        {pedido.detalles.map((d, idx) => (
-                            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#2d3748', marginBottom: '10px' }}>
-                                <span>{d.cantidad}x {d.productoNombre}</span>
-                                <span style={{ fontWeight: 600 }}>Gs. {fmt(d.subtotal)}</span>
-                            </div>
-                        ))}
-                        <div style={{ borderTop: `1px solid ${COL.border}`, marginTop: '12px', paddingTop: '12px', display: 'flex', justifyContent: 'space-between' }}>
-                            <span style={{ fontSize: '14px', fontWeight: 700, color: '#1a202c' }}>{t.total}</span>
-                            <span style={{ fontSize: '18px', fontWeight: 800, color: COL.primary }}>Gs. {fmt(pedido.total)}</span>
+                )}
+
+                <dl className="mc-datos">
+                    {datos.map(item => (
+                        <div key={item.label}>
+                            <dt>{item.label}</dt>
+                            <dd>{item.val || '-'}</dd>
                         </div>
+                    ))}
+                </dl>
+
+                <div className="mc-resumen" style={{ paddingTop: '16px', borderTop: '1px solid var(--mc-borde)' }}>
+                    {pedido.detalles.map((d, idx) => (
+                        <div key={idx} className="mc-resumen__fila">
+                            <span>{d.cantidad}x {d.productoNombre}</span>
+                            <span>Gs. {fmt(d.subtotal)}</span>
+                        </div>
+                    ))}
+                    <div className="mc-resumen__total">
+                        <span>{t.total}</span>
+                        <strong>Gs. {fmt(pedido.total)}</strong>
                     </div>
                 </div>
-            </main>
-            <Footer />
-        </div>
+            </div>
+        </>
     )
 }

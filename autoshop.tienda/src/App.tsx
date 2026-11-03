@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import Home from './pages/Home'
+import Catalogo from './pages/Catalogo'
 import DetalleProducto from './pages/DetalleProducto'
 import Carrito from './pages/Carrito'
 import Checkout from './pages/Checkout'
@@ -37,6 +38,7 @@ export default function App() {
             <Routes>
                 {/* Publicas */}
                 <Route path="/" element={<Home />} />
+                <Route path="/catalogo" element={<Catalogo />} />
                 <Route path="/producto/:id" element={<DetalleProducto />} />
                 <Route path="/carrito" element={<Carrito />} />
                 <Route path="/login" element={<Login />} />

@@ -6,8 +6,6 @@ import Footer from '../components/layout/Footer'
 import { useIdioma } from '../context/IdiomaContext'
 import { API } from '../config/api'
 
-const COL = { primary: '#CC0000', muted: '#718096', border: '#e0e0e0', danger: '#CC0000' }
-
 export default function Perfil() {
     const navigate = useNavigate()
     const { t } = useIdioma()
@@ -61,42 +59,57 @@ export default function Perfil() {
     }
 
     if (cargando) return (
-        <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#f5f5f5' }}>
-            <Header /><div style={{ flex: 1, textAlign: 'center', padding: '80px 0', color: COL.muted }}><i className="fas fa-spinner fa-spin" style={{ fontSize: '28px', color: COL.primary }}></i></div><Footer />
+        <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--mc-fondo)' }}>
+            <Header />
+            <main className="mc-container mc-pagina mc-pagina--angosta" style={{ flex: 1 }}>
+                <div className="mc-panel" aria-hidden="true">
+                    <div className="mc-skeleton" style={{ height: '22px', width: '40%', marginBottom: '20px' }}></div>
+                    <div className="mc-skeleton" style={{ height: '160px' }}></div>
+                </div>
+            </main>
+            <Footer />
         </div>
     )
 
+    const campos = [
+        { id: 'perfil-nombre', label: t.nombreCompleto, type: 'text', val: nombre, set: setNombre, ph: '' },
+        { id: 'perfil-telefono', label: t.telefono, type: 'tel', val: telefono, set: setTelefono, ph: t.telefonoPH },
+        { id: 'perfil-direccion', label: t.direccionHabitual, type: 'text', val: direccion, set: setDireccion, ph: t.direccionPlaceholder },
+    ]
+
     return (
-        <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#f5f5f5' }}>
+        <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--mc-fondo)' }}>
             <Header />
-            <main style={{ flex: 1, maxWidth: '600px', margin: '0 auto', padding: '28px 32px', width: '100%' }}>
-                <h1 style={{ fontSize: '20px', fontWeight: 700, color: '#1a202c', margin: '0 0 4px' }}>
-                    <i className="fas fa-user-circle" style={{ marginRight: '10px', color: COL.primary }}></i>{t.miPerfil}
-                </h1>
-                <p style={{ fontSize: '13px', color: COL.muted, margin: '0 0 24px' }}>{email}</p>
-                <Link to="/mis-pedidos" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fff', borderRadius: '12px', border: `1px solid ${COL.border}`, padding: '16px 20px', textDecoration: 'none', color: 'inherit', marginBottom: '20px' }}>
-                    <span style={{ fontSize: '14px', fontWeight: 600, color: '#2d3748' }}><i className="fas fa-receipt" style={{ marginRight: '10px', color: COL.primary }}></i>{t.verMisPedidos}</span>
-                    <i className="fas fa-chevron-right" style={{ color: '#cbd5e0', fontSize: '13px' }}></i>
-                </Link>
-                <form onSubmit={handleGuardar} style={{ background: '#fff', borderRadius: '16px', border: `1px solid ${COL.border}`, padding: '28px' }}>
-                    <h2 style={{ fontSize: '15px', fontWeight: 700, color: '#1a202c', margin: '0 0 16px' }}>{t.datosPersonales}</h2>
-                    {[
-                        { label: t.nombreCompleto, type: 'text', val: nombre, set: setNombre, ph: '' },
-                        { label: t.telefono, type: 'tel', val: telefono, set: setTelefono, ph: t.telefonoPH },
-                        { label: t.direccionHabitual, type: 'text', val: direccion, set: setDireccion, ph: t.direccionPlaceholder },
-                    ].map((f, i) => (
-                        <div key={i} style={{ marginBottom: i === 2 ? '20px' : '16px' }}>
-                            <label style={{ fontWeight: 600, fontSize: '13px', color: '#2d3748', marginBottom: '6px', display: 'block' }}>{f.label}</label>
-                            <input type={f.type} placeholder={f.ph} value={f.val} onChange={e => f.set(e.target.value)}
-                                style={{ width: '100%', padding: '11px 12px', border: `1.5px solid ${COL.border}`, borderRadius: '8px', fontSize: '14px', color: '#2d3748', outline: 'none' }} />
+            <main className="mc-container mc-pagina mc-pagina--angosta" style={{ flex: 1 }}>
+                <div className="mc-titulo-pagina">
+                    <h1>{t.miPerfil}</h1>
+                    <p>{email}</p>
+                </div>
+
+                <div className="mc-panel mc-filas" style={{ marginBottom: '16px' }}>
+                    <Link to="/mis-pedidos" className="mc-fila">
+                        <i className="fas fa-receipt" style={{ color: 'var(--mc-rojo)' }}></i>
+                        <div className="mc-fila__principal"><strong>{t.verMisPedidos}</strong></div>
+                        <i className="fas fa-chevron-right"></i>
+                    </Link>
+                </div>
+
+                <form onSubmit={handleGuardar} className="mc-panel">
+                    <h2 className="mc-panel__titulo">{t.datosPersonales}</h2>
+                    {campos.map(f => (
+                        <div key={f.id} className="mc-campo">
+                            <label className="mc-label" htmlFor={f.id}>{f.label}</label>
+                            <input id={f.id} type={f.type} className="mc-input" placeholder={f.ph}
+                                value={f.val} onChange={e => f.set(e.target.value)} />
                         </div>
                     ))}
-                    <button type="submit" disabled={guardando} style={{ width: '100%', padding: '13px', background: guardando ? '#a0aec0' : COL.primary, border: 'none', borderRadius: '8px', color: '#fff', fontWeight: 700, fontSize: '15px', cursor: guardando ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
-                        {guardando ? <><i className="fas fa-spinner fa-spin" style={{ marginRight: '8px' }}></i>{t.guardando}</> : t.guardarCambios}
+                    <button type="submit" disabled={guardando} className="mc-btn mc-btn--primario mc-btn--bloque mc-btn--grande" style={{ marginTop: '4px' }}>
+                        {guardando ? <><i className="fas fa-spinner fa-spin"></i>{t.guardando}</> : t.guardarCambios}
                     </button>
                 </form>
-                <button onClick={handleCerrarSesion} style={{ width: '100%', marginTop: '16px', padding: '13px', background: 'none', border: `1.5px solid ${COL.danger}`, borderRadius: '8px', color: COL.danger, fontWeight: 700, fontSize: '14px', cursor: 'pointer', fontFamily: 'inherit' }}>
-                    <i className="fas fa-sign-out-alt" style={{ marginRight: '8px' }}></i>{t.cerrarSesion}
+
+                <button type="button" onClick={handleCerrarSesion} className="mc-btn mc-btn--peligro mc-btn--bloque" style={{ marginTop: '16px' }}>
+                    <i className="fas fa-sign-out-alt"></i>{t.cerrarSesion}
                 </button>
             </main>
             <Footer />

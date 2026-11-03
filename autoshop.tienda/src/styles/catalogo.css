@@ -1,0 +1,372 @@
+/*
+ * Estilos de la pagina /catalogo: migas de pan, filtros, barra de herramientas y paginacion.
+ * Usa las variables definidas en tema.css.
+ */
+
+.mc-catalogo {
+    padding-top: 18px;
+    padding-bottom: 20px;
+}
+
+/* ---------- Migas de pan ---------- */
+.mc-migas {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 18px;
+    font-size: 13px;
+    color: var(--mc-muted);
+}
+
+.mc-migas a {
+    color: var(--mc-muted);
+    text-decoration: none;
+}
+
+.mc-migas a:hover {
+    color: var(--mc-rojo);
+}
+
+.mc-migas i {
+    font-size: 9px;
+    color: #c4c4cc;
+}
+
+.mc-migas [aria-current='page'] {
+    color: var(--mc-texto);
+    font-weight: 600;
+}
+
+/* ---------- Layout ---------- */
+.mc-catalogo__cuerpo {
+    display: flex;
+    align-items: flex-start;
+    gap: 24px;
+}
+
+.mc-catalogo__principal {
+    flex: 1;
+    min-width: 0;
+}
+
+.mc-catalogo__encabezado {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    margin-bottom: 14px;
+}
+
+.mc-catalogo__encabezado h1 {
+    font-size: 28px;
+    font-weight: 900;
+    text-transform: uppercase;
+    line-height: 1.1;
+}
+
+.mc-catalogo__total {
+    font-size: 13px;
+    color: var(--mc-muted);
+}
+
+/* ---------- Barra de herramientas ---------- */
+.mc-catalogo__barra {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 18px;
+    padding: 10px 12px;
+    background: var(--mc-superficie);
+    border: 1px solid var(--mc-borde);
+    border-radius: var(--mc-radio);
+}
+
+.mc-catalogo__barra select {
+    height: 36px;
+    padding: 0 10px;
+    border: 1px solid var(--mc-borde);
+    border-radius: 8px;
+    background: #fff;
+    font-size: 13px;
+    color: var(--mc-texto);
+    outline: none;
+}
+
+.mc-catalogo__barra select:focus {
+    border-color: var(--mc-rojo);
+}
+
+.mc-catalogo__btn-filtros {
+    display: none;
+    position: relative;
+    align-items: center;
+    gap: 8px;
+    height: 36px;
+    padding: 0 14px;
+    border: 1px solid var(--mc-borde);
+    border-radius: 8px;
+    background: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--mc-texto);
+    cursor: pointer;
+}
+
+/* Indica que hay una categoria elegida */
+.mc-catalogo__punto {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--mc-rojo);
+}
+
+.mc-catalogo__vistas {
+    display: flex;
+    gap: 4px;
+    margin-left: auto;
+}
+
+.mc-catalogo__vistas button {
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--mc-borde);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--mc-muted);
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.mc-catalogo__vistas button[aria-pressed='true'] {
+    background: var(--mc-rojo);
+    border-color: var(--mc-rojo);
+    color: #fff;
+}
+
+/* ---------- Filtros ---------- */
+.mc-filtros {
+    position: sticky;
+    top: calc(var(--mc-header-alto) + 16px);
+    flex: 0 0 240px;
+    padding: 16px;
+    background: var(--mc-superficie);
+    border: 1px solid var(--mc-borde);
+    border-radius: var(--mc-radio);
+}
+
+.mc-filtros__cabecera {
+    display: none;
+}
+
+.mc-filtros__titulo {
+    margin-bottom: 8px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--mc-borde);
+    font-family: var(--mc-fuente-titulos);
+    font-size: 14px;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.mc-filtros__opcion {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 8px 6px;
+    border: none;
+    border-radius: 6px;
+    background: none;
+    font-size: 14px;
+    color: var(--mc-texto-2);
+    text-align: left;
+    cursor: pointer;
+}
+
+/* Marcador redondo tipo radio */
+.mc-filtros__opcion::before {
+    content: '';
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    border: 2px solid #d4d4d8;
+    border-radius: 50%;
+    transition: border 0.15s ease;
+}
+
+.mc-filtros__opcion:hover {
+    background: var(--mc-fondo);
+}
+
+.mc-filtros__opcion[aria-pressed='true'] {
+    color: var(--mc-rojo);
+    font-weight: 700;
+}
+
+.mc-filtros__opcion[aria-pressed='true']::before {
+    border: 5px solid var(--mc-rojo);
+}
+
+.mc-filtros__limpiar {
+    width: 100%;
+    margin-top: 14px;
+    padding: 8px;
+    font-size: 13px;
+}
+
+.mc-filtros__fondo {
+    display: none;
+}
+
+/* ---------- Sin resultados ---------- */
+.mc-catalogo__vacio {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 60px 20px;
+    background: var(--mc-superficie);
+    border: 1px dashed var(--mc-borde);
+    border-radius: var(--mc-radio-lg);
+    text-align: center;
+    color: var(--mc-muted);
+}
+
+.mc-catalogo__vacio i {
+    font-size: 36px;
+    color: #d4d4d8;
+    margin-bottom: 6px;
+}
+
+.mc-catalogo__vacio strong {
+    font-size: 16px;
+    color: var(--mc-texto);
+}
+
+.mc-catalogo__vacio .mc-btn {
+    margin-top: 10px;
+}
+
+/* ---------- Paginacion ---------- */
+.mc-paginacion {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 32px;
+}
+
+.mc-paginacion button {
+    min-width: 38px;
+    height: 38px;
+    padding: 0 10px;
+    border: 1px solid var(--mc-borde);
+    border-radius: 8px;
+    background: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--mc-texto);
+    cursor: pointer;
+}
+
+.mc-paginacion button:hover:not(:disabled) {
+    border-color: var(--mc-rojo);
+    color: var(--mc-rojo);
+}
+
+.mc-paginacion button[aria-current='page'] {
+    background: var(--mc-rojo);
+    border-color: var(--mc-rojo);
+    color: #fff;
+}
+
+.mc-paginacion button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.mc-paginacion__puntos {
+    padding: 0 4px;
+    color: var(--mc-muted);
+}
+
+/* ---------- Celular y tablet: filtros en panel lateral ---------- */
+@media (max-width: 899px) {
+    .mc-catalogo__btn-filtros {
+        display: inline-flex;
+    }
+
+    .mc-filtros {
+        position: fixed;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        z-index: 1100;
+        width: min(320px, 85vw);
+        overflow-y: auto;
+        border: none;
+        border-radius: 0;
+        box-shadow: var(--mc-sombra-lg);
+        transform: translateX(-100%);
+        visibility: hidden;
+        transition: transform 0.25s ease, visibility 0.25s;
+    }
+
+    .mc-filtros--abierto {
+        transform: none;
+        visibility: visible;
+    }
+
+    .mc-filtros__cabecera {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin: -16px -16px 16px;
+        padding: 16px;
+        background: var(--mc-negro);
+        color: #fff;
+        font-family: var(--mc-fuente-titulos);
+        font-size: 16px;
+        text-transform: uppercase;
+    }
+
+    .mc-filtros__cabecera button {
+        border: none;
+        background: none;
+        color: #fff;
+        font-size: 18px;
+        cursor: pointer;
+    }
+
+    .mc-filtros__fondo {
+        display: block;
+        position: fixed;
+        inset: 0;
+        z-index: 1090;
+        background: rgba(0, 0, 0, 0.5);
+    }
+}
+
+@media (max-width: 575px) {
+    .mc-catalogo__encabezado h1 {
+        font-size: 22px;
+    }
+
+    .mc-catalogo__barra {
+        padding: 8px;
+        gap: 8px;
+    }
+
+    .mc-catalogo__barra select {
+        flex: 1;
+        min-width: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mc-filtros {
+        transition: none;
+    }
+}

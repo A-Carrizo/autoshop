@@ -173,16 +173,16 @@ export default function Registro() {
     // Pantalla cuando el email ya existe en ERP sin acceso web
     if (emailExiste) {
         return (
-            <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#f5f5f5' }}>
+            <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--mc-fondo)' }}>
                 <HeaderSimple />
-                <main style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 20px' }}>
-                    <div style={{ width: '100%', maxWidth: '420px' }}>
-                        <div style={{ background: '#fff', borderRadius: '16px', padding: '36px', border: `1px solid ${COL.border}` }}>
+                <main className="mc-auth">
+                    <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
+                    <div className="mc-auth__caja">
                             <div style={{ textAlign: 'center', marginBottom: '24px' }}>
                                 <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#fff0f0', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
                                     <i className="fas fa-user-check" style={{ color: COL.primary, fontSize: '22px' }}></i>
                                 </div>
-                                <h1 style={{ fontWeight: 700, color: '#1a202c', fontSize: '18px', marginBottom: '8px' }}>Ya tenés una cuenta</h1>
+                                <h1 style={{ fontSize: '20px', marginBottom: '8px' }}>Ya tenés una cuenta</h1>
                                 <p style={{ color: COL.muted, fontSize: '13px' }}>
                                     El email <strong>{email}</strong> ya está registrado. Te enviamos un link para activar tu cuenta.
                                 </p>
@@ -194,7 +194,7 @@ export default function Registro() {
                                 </div>
                             ) : (
                                 <button onClick={enviarEmailActivacion} disabled={enviandoEmail}
-                                    style={{ width: '100%', padding: '13px', background: COL.primary, border: 'none', borderRadius: '8px', color: '#fff', fontWeight: 700, fontSize: '14px', cursor: enviandoEmail ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                                    className="mc-btn mc-btn--primario mc-btn--bloque mc-btn--grande">
                                     {enviandoEmail ? <><i className="fas fa-spinner fa-spin" style={{ marginRight: '8px' }}></i>Enviando...</> : 'Enviar email de activación'}
                                 </button>
                             )}
@@ -212,67 +212,67 @@ export default function Registro() {
     }
 
     return (
-        <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#f5f5f5' }}>
+        <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--mc-fondo)' }}>
             <HeaderSimple />
-            <main style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 20px' }}>
-                <div style={{ width: '100%', maxWidth: '420px' }}>
-                    <div style={{ background: '#fff', borderRadius: '16px', padding: '36px', border: `1px solid ${COL.border}` }}>
-                        <h1 style={{ fontWeight: 700, color: '#1a202c', marginBottom: '4px', fontSize: '20px' }}>{t.crearCuenta}</h1>
+            <main className="mc-auth">
+                <div style={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
+                    <div className="mc-auth__caja">
+                        <h1>{t.crearCuenta}</h1>
                         <p style={{ color: COL.muted, fontSize: '13px', marginBottom: '24px' }}>{t.registratePH}</p>
                         <form onSubmit={handleRegistro}>
 
                             {/* Nombre */}
                             <div style={{ marginBottom: '14px' }}>
-                                <label style={{ fontWeight: 600, fontSize: '13px', color: '#2d3748', marginBottom: '6px', display: 'block' }}>{t.nombreCompleto}</label>
+                                <label className="mc-label">{t.nombreCompleto}</label>
                                 <input type="text" placeholder={t.tuNombre} value={nombre}
                                     onChange={e => setNombre(e.target.value)} autoFocus
-                                    style={{ width: '100%', padding: '11px 12px', border: `1.5px solid ${COL.border}`, borderRadius: '8px', fontSize: '14px', color: '#2d3748', outline: 'none' }} />
+                                    className="mc-input" />
                             </div>
 
                             {/* Email */}
                             <div style={{ marginBottom: '14px' }}>
-                                <label style={{ fontWeight: 600, fontSize: '13px', color: '#2d3748', marginBottom: '6px', display: 'block' }}>{t.correoElectronico}</label>
+                                <label className="mc-label">{t.correoElectronico}</label>
                                 <input type="email" placeholder={t.correoPH} value={email}
                                     onChange={e => handleEmail(e.target.value)}
-                                    style={{ width: '100%', padding: '11px 12px', border: `1.5px solid ${errEmail ? '#c53030' : COL.border}`, borderRadius: '8px', fontSize: '14px', color: '#2d3748', outline: 'none' }} />
+                                    className={`mc-input${errEmail ? ' mc-input--error' : ''}`} />
                                 <MsgError error={errEmail} verificando={verificandoEmail} />
                             </div>
 
                             {/* Teléfono */}
                             <div style={{ marginBottom: '14px' }}>
-                                <label style={{ fontWeight: 600, fontSize: '13px', color: '#2d3748', marginBottom: '6px', display: 'block' }}>{t.telefonoOpcional}</label>
+                                <label className="mc-label">{t.telefonoOpcional}</label>
                                 <input type="tel" placeholder={t.telefonoPH} value={telefono}
                                     onChange={e => handleTelefono(e.target.value)}
-                                    style={{ width: '100%', padding: '11px 12px', border: `1.5px solid ${errTel ? '#c53030' : COL.border}`, borderRadius: '8px', fontSize: '14px', color: '#2d3748', outline: 'none' }} />
+                                    className={`mc-input${errTel ? ' mc-input--error' : ''}`} />
                                 <MsgError error={errTel} />
                             </div>
 
                             {/* Contraseña */}
                             <div style={{ marginBottom: '14px' }}>
-                                <label style={{ fontWeight: 600, fontSize: '13px', color: '#2d3748', marginBottom: '6px', display: 'block' }}>{t.contrasena}</label>
+                                <label className="mc-label">{t.contrasena}</label>
                                 <input type="password" placeholder={t.minimoCaracteres} value={password}
                                     onChange={e => handlePassword(e.target.value)}
-                                    style={{ width: '100%', padding: '11px 12px', border: `1.5px solid ${errPass ? '#c53030' : COL.border}`, borderRadius: '8px', fontSize: '14px', color: '#2d3748', outline: 'none' }} />
+                                    className={`mc-input${errPass ? ' mc-input--error' : ''}`} />
                                 <MsgError error={errPass} />
                             </div>
 
                             {/* Confirmar contraseña */}
                             <div style={{ marginBottom: '20px' }}>
-                                <label style={{ fontWeight: 600, fontSize: '13px', color: '#2d3748', marginBottom: '6px', display: 'block' }}>{t.confirmarContrasena}</label>
+                                <label className="mc-label">{t.confirmarContrasena}</label>
                                 <input type="password" placeholder={t.repetirContrasena} value={confirmarPassword}
                                     onChange={e => handleConfirmar(e.target.value)}
-                                    style={{ width: '100%', padding: '11px 12px', border: `1.5px solid ${errConfirm ? '#c53030' : COL.border}`, borderRadius: '8px', fontSize: '14px', color: '#2d3748', outline: 'none' }} />
+                                    className={`mc-input${errConfirm ? ' mc-input--error' : ''}`} />
                                 <MsgError error={errConfirm} />
                             </div>
 
                             <button type="submit" disabled={loading || hayErrores()}
-                                style={{ width: '100%', padding: '13px', background: loading || hayErrores() ? '#a0aec0' : COL.primary, border: 'none', borderRadius: '8px', color: '#fff', fontWeight: 700, fontSize: '15px', cursor: loading || hayErrores() ? 'not-allowed' : 'pointer', marginBottom: '16px', fontFamily: 'inherit' }}>
+                                className="mc-btn mc-btn--primario mc-btn--bloque mc-btn--grande" style={{ marginBottom: '16px' }}>
                                 {loading ? <><i className="fas fa-spinner fa-spin" style={{ marginRight: '8px' }}></i>{t.creandoCuenta}</> : t.crearCuenta}
                             </button>
                         </form>
                         <p style={{ textAlign: 'center', fontSize: '13px', color: COL.muted, margin: 0 }}>
                             {t.yaTenesCuenta}{' '}
-                            <Link to={`/login?next=${encodeURIComponent(next)}`} style={{ color: COL.primary, fontWeight: 600, textDecoration: 'none' }}>{t.iniciaSesion}</Link>
+                            <Link to={`/login?next=${encodeURIComponent(next)}`} className="mc-link">{t.iniciaSesion}</Link>
                         </p>
                     </div>
                 </div>

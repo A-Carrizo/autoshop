@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, ReactNode } from 'react'
+import { createContext, useContext, useState } from 'react'
+import type { ReactNode } from 'react'
 
 export type Idioma = 'es' | 'pt'
 
@@ -8,6 +9,46 @@ export const TEXTOS = {
         buscarPlaceholder: 'Buscar productos...',
         todos: 'Todos',
         verTodas: 'Ver todas',
+        buscar: 'Buscar',
+        categorias: 'Categorias',
+        verCatalogoCompleto: 'Ver catalogo completo',
+        ingresar: 'Registrarse / Iniciar sesion',
+        hola: 'Hola',
+        miCuenta: 'Mi cuenta',
+        tuCompra: 'Tu compra',
+        verTodo: 'Ver todo',
+        anterior: 'Anterior',
+        siguiente: 'Siguiente',
+
+        // Portada
+        ofertas: 'Ofertas',
+        ofertasSub: 'Productos con descuento por tiempo limitado',
+        destacados: 'Los mas destacados',
+        destacadosSub: 'Una seleccion de nuestro catalogo',
+        comprarPorCategoria: 'Compra por categoria',
+        comprarPorCategoriaSub: 'Encontra rapido lo que buscas',
+        verCatalogo: 'Ver catalogo',
+        heroTitulo: 'Todo para tu auto, en un solo lugar',
+
+        // Catalogo
+        inicio: 'Inicio',
+        catalogo: 'Catalogo',
+        filtros: 'Filtros',
+        limpiarFiltros: 'Limpiar filtros',
+        productosEncontrados: 'productos',
+        productoEncontrado: 'producto',
+        vistaGrilla: 'Vista en grilla',
+        vistaLista: 'Vista en lista',
+        cerrar: 'Cerrar',
+        verResultados: 'Ver resultados',
+        probaOtraBusqueda: 'Proba con otra busqueda o quita los filtros.',
+
+        // Detalle y footer
+        descripcion: 'Descripcion',
+        relacionados: 'Productos relacionados',
+        relacionadosSub: 'Otros productos que te pueden interesar',
+        navegacion: 'Navegacion',
+        contacto: 'Contacto',
 
         // Home
         todosLosProductos: 'Todos los productos',
@@ -31,7 +72,6 @@ export const TEXTOS = {
         // Detalle Producto
         volverAlCatalogo: 'Volver al catalogo',
         enStock: 'En stock',
-        disponibles: 'disponibles',
         sinStockDisponible: 'Sin stock disponible',
         cantidad: 'Cantidad:',
         productoNoDisponible: 'Este producto no esta disponible.',
@@ -131,6 +171,46 @@ export const TEXTOS = {
         buscarPlaceholder: 'Buscar produtos...',
         todos: 'Todos',
         verTodas: 'Ver todas',
+        buscar: 'Buscar',
+        categorias: 'Categorias',
+        verCatalogoCompleto: 'Ver catalogo completo',
+        ingresar: 'Cadastrar / Entrar',
+        hola: 'Ola',
+        miCuenta: 'Minha conta',
+        tuCompra: 'Sua compra',
+        verTodo: 'Ver tudo',
+        anterior: 'Anterior',
+        siguiente: 'Proximo',
+
+        // Portada
+        ofertas: 'Ofertas',
+        ofertasSub: 'Produtos com desconto por tempo limitado',
+        destacados: 'Os mais destacados',
+        destacadosSub: 'Uma selecao do nosso catalogo',
+        comprarPorCategoria: 'Compre por categoria',
+        comprarPorCategoriaSub: 'Encontre rapido o que procura',
+        verCatalogo: 'Ver catalogo',
+        heroTitulo: 'Tudo para o seu carro, em um so lugar',
+
+        // Catalogo
+        inicio: 'Inicio',
+        catalogo: 'Catalogo',
+        filtros: 'Filtros',
+        limpiarFiltros: 'Limpar filtros',
+        productosEncontrados: 'produtos',
+        productoEncontrado: 'produto',
+        vistaGrilla: 'Visualizar em grade',
+        vistaLista: 'Visualizar em lista',
+        cerrar: 'Fechar',
+        verResultados: 'Ver resultados',
+        probaOtraBusqueda: 'Tente outra busca ou remova os filtros.',
+
+        // Detalle y footer
+        descripcion: 'Descricao',
+        relacionados: 'Produtos relacionados',
+        relacionadosSub: 'Outros produtos que podem te interessar',
+        navegacion: 'Navegacao',
+        contacto: 'Contato',
 
         // Home
         todosLosProductos: 'Todos os produtos',
@@ -154,7 +234,6 @@ export const TEXTOS = {
         // Detalle Producto
         volverAlCatalogo: 'Voltar ao catalogo',
         enStock: 'Em estoque',
-        disponibles: 'disponiveis',
         sinStockDisponible: 'Sem estoque disponivel',
         cantidad: 'Quantidade:',
         productoNoDisponible: 'Este produto nao esta disponivel.',

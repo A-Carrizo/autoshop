@@ -1,94 +1,112 @@
 import { useState, useRef, useEffect } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useCarrito } from '../../context/CarritoContext'
 import { useIdioma } from '../../context/IdiomaContext'
-
-const COL = {
-    headerBg: '#1a1a1a',
-    accent: '#CC0000',
-}
+import { useCategorias } from '../../hooks/useCategorias'
+import Logo from './Logo'
 
 export default function Header() {
     const navigate = useNavigate()
-    const { totalItems } = useCarrito()
+    const [searchParams] = useSearchParams()
+    const { totalItems, totalPrecio } = useCarrito()
     const { t, idioma, cambiarIdioma } = useIdioma()
-    const [busqueda, setBusqueda] = useState('')
+    const [busqueda, setBusqueda] = useState(() => searchParams.get('busqueda') || '')
     const [nombreCliente] = useState<string | null>(() => localStorage.getItem('tienda_nombre'))
+    const categorias = useCategorias()
+    const [menuAbierto, setMenuAbierto] = useState(false)
+    const menuRef = useRef<HTMLDivElement>(null)
+
+    // Cerrar el menu al hacer click afuera o presionar Escape
+    useEffect(() => {
+        if (!menuAbierto) return
+        const alClickear = (e: MouseEvent) => {
+            if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuAbierto(false)
+        }
+        const alTeclear = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenuAbierto(false) }
+        document.addEventListener('mousedown', alClickear)
+        document.addEventListener('keydown', alTeclear)
+        return () => {
+            document.removeEventListener('mousedown', alClickear)
+            document.removeEventListener('keydown', alTeclear)
+        }
+    }, [menuAbierto])
 
     const handleBuscar = (e: React.SyntheticEvent) => {
         e.preventDefault()
-        navigate(`/?busqueda=${encodeURIComponent(busqueda.trim())}`)
+        const texto = busqueda.trim()
+        navigate(texto ? `/catalogo?busqueda=${encodeURIComponent(texto)}` : '/catalogo')
     }
 
-    return (
-        <header style={{ fontFamily: "'Segoe UI', sans-serif" }}>
-            <div style={{
-                background: COL.headerBg,
-                borderBottom: `3px solid ${COL.accent}`,
-                padding: '14px 24px',
-                display: 'flex', alignItems: 'center', gap: '20px',
-            }}>
-                <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none', flexShrink: 0 }}>
-                    <div style={{
-                        width: '38px', height: '38px', borderRadius: '10px',
-                        background: COL.accent, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>
-                        <i className="fas fa-car" style={{ color: '#fff', fontSize: '18px' }}></i>
-                    </div>
-                    <span style={{ color: '#fff', fontWeight: 800, fontSize: '19px' }}>MagCar</span>
-                </Link>
+    const fmt = (n: number) => n.toLocaleString('es-PY')
 
-                <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
-                    <form onSubmit={handleBuscar} style={{ position: 'relative', width: '100%', maxWidth: '420px' }}>
-                        <input type="text" placeholder={t.buscarPlaceholder}
-                            value={busqueda} onChange={e => setBusqueda(e.target.value)}
-                            style={{
-                                width: '100%', height: '36px', borderRadius: '20px', border: 'none',
-                                padding: '0 40px 0 16px', fontSize: '13px', outline: 'none', background: '#fff',
-                            }}
-                        />
-                        <button type="submit" style={{
-                            position: 'absolute', right: '6px', top: '50%', transform: 'translateY(-50%)',
-                            background: COL.accent, border: 'none', borderRadius: '50%',
-                            width: '26px', height: '26px', cursor: 'pointer', color: '#fff', fontSize: '12px',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        }}>
-                            <i className="fas fa-search"></i>
-                        </button>
-                    </form>
+    return (
+        <header className="mc-header">
+            <div className="mc-container mc-header__barra">
+                <Logo />
+
+                <form className="mc-buscador" onSubmit={handleBuscar} role="search">
+                    <input type="text" placeholder={t.buscarPlaceholder} aria-label={t.buscarPlaceholder}
+                        value={busqueda} onChange={e => setBusqueda(e.target.value)} />
+                    <button type="submit" aria-label={t.buscar}>
+                        <i className="fas fa-search"></i>
+                        <span>{t.buscar}</span>
+                    </button>
+                </form>
+
+                {/* Menu de categorias */}
+                <div className="mc-categorias" ref={menuRef}>
+                    <button type="button" className="mc-header__accion mc-header__todos"
+                        aria-expanded={menuAbierto} aria-haspopup="true"
+                        onClick={() => setMenuAbierto(v => !v)}>
+                        <i className="fas fa-th-large mc-header__icono"></i>
+                        <span>{t.todos}</span>
+                    </button>
+                    {menuAbierto && (
+                        // Cualquier click en un link del menu lo cierra
+                        <nav className="mc-categorias__menu" onClick={() => setMenuAbierto(false)}>
+                            <div className="mc-categorias__titulo">{t.categorias}</div>
+                            {categorias.map(cat => (
+                                <Link key={cat.id} to={`/catalogo?categoriaId=${cat.id}`} className="mc-categorias__item">
+                                    {cat.nombre}
+                                    <i className="fas fa-chevron-right"></i>
+                                </Link>
+                            ))}
+                            <Link to="/catalogo" className="mc-categorias__item mc-categorias__item--destacado">
+                                {t.verCatalogoCompleto}
+                                <i className="fas fa-arrow-right"></i>
+                            </Link>
+                        </nav>
+                    )}
                 </div>
 
                 {/* Selector de idioma */}
-                <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                <div className="mc-idioma" role="group" aria-label="Idioma">
                     {(['es', 'pt'] as const).map(lang => (
-                        <button key={lang} onClick={() => cambiarIdioma(lang)}
-                            style={{
-                                background: idioma === lang ? COL.accent : 'rgba(255,255,255,0.1)',
-                                border: 'none', borderRadius: '6px', cursor: 'pointer',
-                                padding: '4px 8px', fontSize: '11px', fontWeight: 700,
-                                color: '#fff', transition: 'all 0.15s', fontFamily: 'inherit',
-                            }}>
-                            {lang === 'es' ? '🇵🇾 ES' : '🇧🇷 PT'}
+                        <button key={lang} type="button" aria-pressed={idioma === lang} onClick={() => cambiarIdioma(lang)}>
+                            {lang.toUpperCase()}
                         </button>
                     ))}
                 </div>
 
-                <Link to={nombreCliente ? '/perfil' : '/login'} style={{ color: '#fff', textDecoration: 'none', flexShrink: 0 }}>
-                    <i className="fas fa-user-circle" style={{ fontSize: '20px' }}></i>
+                {/* Cuenta */}
+                <Link to={nombreCliente ? '/perfil' : '/login'} className="mc-header__accion mc-header__accion--rojo"
+                    aria-label={nombreCliente ? t.miCuenta : t.ingresar}>
+                    <i className="far fa-user mc-header__icono"></i>
+                    <span className="mc-header__cuenta-texto">
+                        {nombreCliente ? `${t.hola}, ${nombreCliente.split(' ')[0]}` : t.ingresar}
+                    </span>
                 </Link>
 
-                <Link to="/carrito" style={{ position: 'relative', color: '#fff', textDecoration: 'none', flexShrink: 0 }}>
-                    <i className="fas fa-shopping-cart" style={{ fontSize: '20px' }}></i>
-                    {totalItems > 0 && (
-                        <span style={{
-                            position: 'absolute', top: '-8px', right: '-10px',
-                            background: COL.accent, color: '#fff',
-                            fontSize: '10px', fontWeight: 800, borderRadius: '50%',
-                            width: '18px', height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        }}>
-                            {totalItems}
-                        </span>
-                    )}
+                {/* Carrito con total */}
+                <Link to="/carrito" className="mc-header__accion mc-header__accion--rojo" aria-label={t.miCarrito}>
+                    <span className="mc-header__carrito-icono">
+                        <i className="fas fa-shopping-cart mc-header__icono"></i>
+                        {totalItems > 0 && <span className="mc-header__badge">{totalItems}</span>}
+                    </span>
+                    <span className="mc-header__texto-doble mc-header__carrito-texto">
+                        <small>{t.tuCompra}</small>
+                        <strong>Gs. {fmt(totalPrecio)}</strong>
+                    </span>
                 </Link>
             </div>
         </header>

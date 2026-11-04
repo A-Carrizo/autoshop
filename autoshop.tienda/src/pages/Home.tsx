@@ -1,9 +1,9 @@
-import { Link, Navigate, useLocation, useSearchParams } from 'react-router-dom'
+import { Navigate, useLocation, useSearchParams } from 'react-router-dom'
 import Header from '../components/layout/Header'
 import Footer from '../components/layout/Footer'
 import CarruselPromociones from '../components/CarruselPromociones'
 import CarruselProductos from '../components/producto/CarruselProductos'
-import SeccionTitulo from '../components/SeccionTitulo'
+import AccesosCategorias from '../components/AccesosCategorias'
 import { useIdioma } from '../context/IdiomaContext'
 import { useCategorias } from '../hooks/useCategorias'
 import type { ProductoResumen } from '../types/catalogo'
@@ -33,20 +33,7 @@ export default function Home() {
             <main className="mc-container mc-portada" style={{ flex: 1 }}>
                 <CarruselProductos titulo={t.ofertas} subtitulo={t.ofertasSub} filtrar={conDescuento} verTodo="/catalogo" />
 
-                {categorias.length > 0 && (
-                    <section>
-                        <SeccionTitulo titulo={t.comprarPorCategoria} subtitulo={t.comprarPorCategoriaSub}
-                            accion={{ texto: t.verCatalogo, to: '/catalogo' }} />
-                        <div className="mc-cat-grilla">
-                            {categorias.map(cat => (
-                                <Link key={cat.id} to={`/catalogo?categoriaId=${cat.id}`} className="mc-cat-tile">
-                                    <i className="fas fa-arrow-right"></i>
-                                    <span>{cat.nombre}</span>
-                                </Link>
-                            ))}
-                        </div>
-                    </section>
-                )}
+                <AccesosCategorias />
 
                 <CarruselProductos titulo={t.destacados} subtitulo={t.destacadosSub} verTodo="/catalogo" />
 

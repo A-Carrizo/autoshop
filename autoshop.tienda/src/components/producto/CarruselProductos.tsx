@@ -17,6 +17,7 @@ interface Props {
 }
 
 const SKELETONS = 5
+const TAMANO_CON_FILTRO = 500
 
 // Fila horizontal de productos con flechas; en celular se desliza con el dedo
 export default function CarruselProductos({ titulo, subtitulo, filtros, filtrar, cantidad = 12, verTodo }: Props) {
@@ -27,8 +28,8 @@ export default function CarruselProductos({ titulo, subtitulo, filtros, filtrar,
 
     // Clave estable para no volver a pedir datos en cada render
     const filtrosKey = JSON.stringify(filtros ?? {})
-    // Si hay filtro del cliente pedimos de mas, para que queden suficientes despues de filtrar
-    const tamano = filtrar ? Math.max(cantidad * 4, 48) : cantidad
+    // El filtro del cliente necesita ver todo el catalogo: una oferta puede estar en cualquier pagina
+    const tamano = filtrar ? TAMANO_CON_FILTRO : cantidad
 
     useEffect(() => {
         let cancelado = false

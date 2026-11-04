@@ -26,6 +26,15 @@
     transform: scale(1.2);
 }
 
+/* Foto de la tienda a todo el ancho, sin difuminar */
+.mc-hero__foto {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
 .mc-hero__degradado {
     position: absolute;
     inset: 0;
@@ -224,9 +233,9 @@
 
 /* Celular: imagen arriba, textos abajo, sin flechas (se usan los puntos) */
 @media (max-width: 767px) {
+    /* Alto fijo para que la pagina no salte al rotar entre diapositivas */
     .mc-hero {
-        height: auto;
-        min-height: 420px;
+        height: 520px;
     }
 
     .mc-hero__contenido {
@@ -237,6 +246,15 @@
         padding-bottom: 44px;
         padding-left: var(--mc-gutter);
         padding-right: var(--mc-gutter);
+    }
+
+    /* Sobre una foto el texto va abajo, en la parte oscura del degradado */
+    .mc-hero__contenido--foto {
+        justify-content: flex-start;
+    }
+
+    .mc-hero__contenido:not(.mc-hero__contenido--foto) .mc-hero__descripcion {
+        display: none;
     }
 
     .mc-hero__degradado {
@@ -255,6 +273,7 @@
 
     .mc-hero__titulo {
         font-size: 24px;
+        -webkit-line-clamp: 2;
     }
 
     .mc-hero__precio {
@@ -275,74 +294,77 @@
 .mc-cat-grilla {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
-    gap: 12px;
+    gap: 14px;
     margin-bottom: 44px;
 }
 
 .mc-cat-tile {
-    position: relative;
     display: flex;
-    align-items: flex-end;
-    min-height: 92px;
-    padding: 14px 16px;
-    border-radius: var(--mc-radio-lg);
+    flex-direction: column;
+    min-width: 0;
     overflow: hidden;
-    background: var(--mc-negro-2);
-    color: #fff;
-    font-family: var(--mc-fuente-titulos);
-    font-size: 15px;
-    font-weight: 800;
-    line-height: 1.15;
-    text-transform: uppercase;
+    background: var(--mc-superficie);
+    border: 1px solid var(--mc-borde);
+    border-radius: var(--mc-radio-lg);
+    color: var(--mc-texto);
     text-decoration: none;
-    transition: background 0.2s ease, transform 0.2s ease;
-}
-
-/* Detalle decorativo: franja roja en diagonal */
-.mc-cat-tile::before {
-    content: '';
-    position: absolute;
-    top: -30px;
-    right: -30px;
-    width: 90px;
-    height: 90px;
-    background: var(--mc-rojo);
-    transform: rotate(45deg);
-    opacity: 0.85;
-    transition: opacity 0.2s ease;
-}
-
-.mc-cat-tile i {
-    position: absolute;
-    top: 14px;
-    right: 14px;
-    z-index: 1;
-    font-size: 12px;
-}
-
-.mc-cat-tile span {
-    position: relative;
-    z-index: 1;
+    transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
 }
 
 .mc-cat-tile:hover {
-    background: var(--mc-rojo);
-    color: #fff;
     transform: translateY(-3px);
+    border-color: transparent;
+    box-shadow: var(--mc-sombra-lg);
+    color: var(--mc-rojo);
 }
 
-.mc-cat-tile:hover::before {
-    opacity: 0;
+.mc-cat-tile__imagen {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    aspect-ratio: 4 / 3;
+    padding: 12px;
+    overflow: hidden;
+    background: #fff;
+    color: #d4d4d8;
+    font-size: 30px;
+}
+
+.mc-cat-tile__imagen img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    transition: transform 0.3s ease;
+}
+
+.mc-cat-tile:hover .mc-cat-tile__imagen img {
+    transform: scale(1.06);
+}
+
+.mc-cat-tile__nombre {
+    padding: 10px 12px;
+    border-top: 1px solid #f1f1f3;
+    font-family: var(--mc-fuente-titulos);
+    font-size: 14px;
+    font-weight: 800;
+    line-height: 1.2;
+    text-align: center;
+    text-transform: uppercase;
+    overflow-wrap: anywhere;
 }
 
 @media (max-width: 575px) {
     .mc-cat-grilla {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 10px;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
     }
 
-    .mc-cat-tile {
-        min-height: 76px;
-        font-size: 13px;
+    .mc-cat-tile__imagen {
+        padding: 8px;
+    }
+
+    .mc-cat-tile__nombre {
+        padding: 7px 2px;
+        font-size: 10px;
     }
 }

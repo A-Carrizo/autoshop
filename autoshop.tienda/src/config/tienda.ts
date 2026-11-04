@@ -1,3 +1,14 @@
+// Foto de la tienda que se muestra en el carrusel de la portada
+export interface BannerHero {
+    // Ruta de la imagen dentro de la carpeta public, ej: '/banners/local.jpg'
+    imagen: string
+    titulo: string
+    subtitulo?: string
+    // A donde lleva el boton; por defecto al catalogo
+    link?: string
+    textoBoton?: string
+}
+
 // Datos de contacto y de pago que se muestran en el footer y en el checkout.
 // Los campos vacios no se muestran; completar con los datos reales del negocio.
 export const TIENDA = {
@@ -11,4 +22,9 @@ export const TIENDA = {
     horario: '',
     instagram: '',  // URL completa del perfil
     facebook: '',   // URL completa de la pagina
+
+    // Fotos del local para el carrusel de la portada, intercaladas con productos.
+    // Copiar las imagenes en public/banners y agregarlas aca, por ejemplo:
+    // { imagen: '/banners/local.jpg', titulo: 'Visita nuestro local', subtitulo: 'Te asesoramos' },
+    bannersHero: [] as BannerHero[],
 }

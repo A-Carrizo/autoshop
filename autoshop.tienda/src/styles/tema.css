@@ -141,13 +141,6 @@ h1, h2, h3, h4, h5, h6 {
     color: var(--mc-rojo);
 }
 
-.mc-logo__icono {
-    font-size: 18px;
-    color: var(--mc-rojo);
-    margin-right: 8px;
-    font-style: normal;
-}
-
 /* ---------- Header ---------- */
 .mc-header {
     position: sticky;
@@ -412,10 +405,6 @@ h1, h2, h3, h4, h5, h6 {
     .mc-logo {
         font-size: 22px;
         margin-right: auto;
-    }
-
-    .mc-logo__icono {
-        display: none;
     }
 
     .mc-buscador {

@@ -7,7 +7,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MimeKit;
 using System.Security.Cryptography;
-using System.Text;
 
 namespace autoshop.Server.Controllers
 {
@@ -23,13 +22,6 @@ namespace autoshop.Server.Controllers
         {
             _context = context;
             _config = config;
-        }
-
-        private static string HashPassword(string password)
-        {
-            using var sha = SHA256.Create();
-            var bytes = sha.ComputeHash(Encoding.UTF8.GetBytes(password + "magcar_salt_2026"));
-            return Convert.ToHexString(bytes).ToLower();
         }
 
         private static string GenerarToken() =>
@@ -144,11 +136,14 @@ namespace autoshop.Server.Controllers
             if (string.IsNullOrWhiteSpace(dto.Email) || string.IsNullOrWhiteSpace(dto.Password))
                 return BadRequest(new { mensaje = "Email y contrasena son requeridos." });
 
-            var hash = HashPassword(dto.Password);
             var usuario = await _context.Usuarios
-                .FirstOrDefaultAsync(u => u.Email == dto.Email.ToLower() && u.PasswordHash == hash && u.Activo);
+                .FirstOrDefaultAsync(u => u.Email == dto.Email.ToLower() && u.Activo);
 
-            if (usuario == null) return Unauthorized(new { mensaje = "Email o contrasena incorrectos." });
+            if (usuario == null || !Contrasenas.Verificar(dto.Password, usuario.PasswordHash))
+                return Unauthorized(new { mensaje = "Email o contrasena incorrectos." });
+
+            if (Contrasenas.EsAntigua(usuario.PasswordHash))
+                usuario.PasswordHash = Contrasenas.Hashear(dto.Password);
 
             var token = GenerarToken();
             usuario.Token = token;
@@ -226,7 +221,7 @@ namespace autoshop.Server.Controllers
             if (usuario == null) return BadRequest(new { mensaje = "El enlace es invalido o ha expirado." });
             if (dto.NuevaPassword.Length < 6) return BadRequest(new { mensaje = "Minimo 6 caracteres." });
 
-            usuario.PasswordHash = HashPassword(dto.NuevaPassword);
+            usuario.PasswordHash = Contrasenas.Hashear(dto.NuevaPassword);
             usuario.TokenReset = null; usuario.TokenResetExpira = null;
             usuario.Token = null; usuario.TokenExpira = null;
             usuario.PrimerLogin = false;
@@ -245,11 +240,11 @@ namespace autoshop.Server.Controllers
                 u.Token == token && u.TokenExpira > DateTime.UtcNow && u.Activo);
 
             if (usuario == null) return Unauthorized(new { mensaje = "Sesion invalida." });
-            if (usuario.PasswordHash != HashPassword(dto.PasswordActual))
+            if (!Contrasenas.Verificar(dto.PasswordActual, usuario.PasswordHash))
                 return BadRequest(new { mensaje = "La contrasena actual es incorrecta." });
             if (dto.NuevaPassword.Length < 6) return BadRequest(new { mensaje = "Minimo 6 caracteres." });
 
-            usuario.PasswordHash = HashPassword(dto.NuevaPassword);
+            usuario.PasswordHash = Contrasenas.Hashear(dto.NuevaPassword);
             usuario.Token = null; usuario.TokenExpira = null;
             usuario.PrimerLogin = false;
             await _context.SaveChangesAsync();
@@ -269,7 +264,7 @@ namespace autoshop.Server.Controllers
             if (usuario == null) return Unauthorized(new { mensaje = "Sesion invalida." });
             if (dto.NuevaPassword.Length < 6) return BadRequest(new { mensaje = "Minimo 6 caracteres." });
 
-            usuario.PasswordHash = HashPassword(dto.NuevaPassword);
+            usuario.PasswordHash = Contrasenas.Hashear(dto.NuevaPassword);
             usuario.PrimerLogin = false;
             usuario.Token = null; usuario.TokenExpira = null;
             await _context.SaveChangesAsync();

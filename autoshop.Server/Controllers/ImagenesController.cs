@@ -51,6 +51,9 @@ namespace autoshop.Server.Controllers
         [HttpDelete("productos/{nombreArchivo}")]
         public IActionResult EliminarImagen(string nombreArchivo)
         {
+            if (nombreArchivo != Path.GetFileName(nombreArchivo))
+                return BadRequest(new { mensaje = "Nombre de archivo invalido." });
+
             var carpeta = Path.Combine(
                 _env.ContentRootPath, "wwwroot", "imagenes", "productos");
             var rutaCompleta = Path.Combine(carpeta, nombreArchivo);

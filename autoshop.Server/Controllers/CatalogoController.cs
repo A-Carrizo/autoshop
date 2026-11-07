@@ -1,9 +1,11 @@
 ﻿using autoshop.Server.Data;
+using autoshop.Server.Seguridad;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace autoshop.Server.Controllers
 {
+    [AccesoPublico]
     [ApiController]
     [Route("api/tienda/catalogo")]
     public class CatalogoController : ControllerBase

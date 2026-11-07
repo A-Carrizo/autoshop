@@ -1,4 +1,5 @@
 using autoshop.Server.Data;
+using autoshop.Server.Seguridad;
 using autoshop.Server.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -10,6 +11,7 @@ using MimeKit;
 
 namespace autoshop.Server.Controllers
 {
+    [AccesoPublico]
     [ApiController]
     [Route("api/tienda/auth")]
     public class TiendaAuthController : ControllerBase

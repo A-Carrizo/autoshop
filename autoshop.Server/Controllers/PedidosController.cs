@@ -1,4 +1,5 @@
 ﻿using autoshop.Server.Data;
+using autoshop.Server.Seguridad;
 using autoshop.Server.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -24,6 +25,7 @@ namespace autoshop.Server.Controllers
         }
 
         // POST /api/tienda/pedidos — crear pedido (cliente)
+        [AccesoPublico]
         [HttpPost]
         public async Task<IActionResult> CrearPedido([FromBody] CrearPedidoDto dto)
         {
@@ -84,6 +86,7 @@ namespace autoshop.Server.Controllers
         }
 
         // GET /api/tienda/pedidos/mis-pedidos
+        [AccesoPublico]
         [HttpGet("mis-pedidos")]
         public async Task<IActionResult> MisPedidos()
         {
@@ -108,6 +111,7 @@ namespace autoshop.Server.Controllers
         }
 
         // GET /api/tienda/pedidos/mis-pedidos/:id
+        [AccesoPublico]
         [HttpGet("mis-pedidos/{id}")]
         public async Task<IActionResult> DetallePedido(Guid id)
         {

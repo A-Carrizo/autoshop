@@ -1,4 +1,6 @@
-﻿namespace autoshop.Server.Models
+﻿using System.Text.Json.Serialization;
+
+namespace autoshop.Server.Models
 {
     public class Cliente
     {
@@ -13,10 +15,15 @@
 
         // Acceso a la tienda online (opcional)
         public bool TieneAccesoWeb { get; set; } = false;
+        [JsonIgnore]
         public string? PasswordHash { get; set; }
+        [JsonIgnore]
         public string? Token { get; set; }
+        [JsonIgnore]
         public DateTime? TokenExpira { get; set; }
+        [JsonIgnore]
         public string? TokenReset { get; set; }
+        [JsonIgnore]
         public DateTime? TokenResetExpira { get; set; }
 
         // Se completa cuando un cliente inactivo (eliminado en el ERP) se reactiva

@@ -1,4 +1,5 @@
 ﻿using autoshop.Server.Data;
+using autoshop.Server.Seguridad;
 using autoshop.Server.Models;
 using MailKit.Net.Smtp;
 using MailKit.Security;
@@ -10,6 +11,7 @@ using System.Text;
 
 namespace autoshop.Server.Controllers
 {
+    [AccesoPublico]
     [ApiController]
     [Route("api/[controller]")]
     public class AuthController : ControllerBase

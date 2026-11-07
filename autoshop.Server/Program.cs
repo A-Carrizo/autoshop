@@ -1,11 +1,12 @@
 using autoshop.Server.Data;
+using autoshop.Server.Seguridad;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services
-builder.Services.AddControllers()
+builder.Services.AddControllers(options => options.Filters.Add<SesionErpFilter>())
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.ReferenceHandler =

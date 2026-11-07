@@ -74,37 +74,8 @@ namespace autoshop.Server.Controllers
                 if (clienteExistente.TieneAccesoWeb)
                     return BadRequest(new { mensaje = "Ya existe una cuenta con ese email. Iniciá sesión." });
 
-                // Activar directamente con la contraseña ingresada
-                if (!string.IsNullOrEmpty(dto.Password) && dto.Password.Length >= 6)
-                {
-                    var tokenActivacion = GenerarToken();
-
-                    // Si el cliente estaba inactivo (eliminado en el ERP), se reactiva
-                    // automáticamente al crear su cuenta web. Queda registrado el momento
-                    // exacto para poder avisar en el ERP que no fue una reactivación manual.
-                    var reactivado = !clienteExistente.Activo;
-                    if (reactivado)
-                    {
-                        clienteExistente.Activo = true;
-                        clienteExistente.FechaReactivacionAuto = DateTime.UtcNow;
-                    }
-
-                    clienteExistente.TieneAccesoWeb = true;
-                    clienteExistente.PasswordHash = Hashear(dto.Password);
-                    clienteExistente.Token = tokenActivacion;
-                    clienteExistente.TokenExpira = DateTime.UtcNow.AddDays(30);
-                    await _db.SaveChangesAsync();
-
-                    return Ok(new
-                    {
-                        token = tokenActivacion,
-                        nombre = clienteExistente.Nombre,
-                        email = clienteExistente.Email,
-                        reactivado
-                    });
-                }
-
-                // Solo si no hay contraseña, enviar email
+                // El email de un cliente del ERP no prueba que quien se registra sea su titular:
+                // la cuenta solo se activa desde el enlace enviado a ese correo.
                 if (string.IsNullOrEmpty(clienteExistente.Email))
                     return BadRequest(new { mensaje = "No se puede activar la cuenta. Contactá con el vendedor." });
 
